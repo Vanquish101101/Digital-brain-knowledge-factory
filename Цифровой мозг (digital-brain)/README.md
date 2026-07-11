@@ -26,10 +26,11 @@ docker compose ps   # дождаться healthy у всех 4
 - Postgres: localhost:5432
 - Redis: localhost:**6380** (не 6379 — порт занят чужим контейнером другого проекта)
 
-Тома данных — `E:\Фабрика знаний (knowledge-factory)\data\` (внешний диск). Postgres — на
-именованном томе Docker с фиксированным именем `knowledge-factory_kf_postgres_data` (не на
-`E:` — Windows/NTFS bind-mount не даёт контейнеру строгих Unix-прав, которые требует Postgres;
-имя тома зафиксировано явно в `docker-compose.yml`, чтобы не зависеть от имени папки проекта).
+Тома данных — `data/` внутри этой же папки (физически на `E:`). Postgres — на именованном
+томе Docker с фиксированным именем `knowledge-factory_kf_postgres_data` (не в `data/` —
+Windows/NTFS bind-mount не даёт контейнеру строгих Unix-прав, которые требует Postgres; имя
+тома зафиксировано явно в `docker-compose.yml`, чтобы не зависеть от имени папки проекта).
+`data/` — в `.gitignore` (большие бинарники, не для git).
 
 ## Команды kf.py
 
@@ -48,7 +49,7 @@ uv run python kf.py stats                    # сколько документо
 `kf/mcp_server.py` (FastMCP) поверх `kf/api.py` — инструменты `semantic_search`, `ask`, `stats`.
 
 ```
-claude mcp add knowledge-factory -s user -e PYTHONPATH="<путь>\Цифровой мозг (digital-brain)" -- "<путь>\Цифровой мозг (digital-brain)\.venv\Scripts\python.exe" -m kf.mcp_server
+claude mcp add knowledge-factory -s user -e PYTHONPATH="E:\Digital brain\Цифровой мозг (digital-brain)" -- "E:\Digital brain\Цифровой мозг (digital-brain)\.venv\Scripts\python.exe" -m kf.mcp_server
 ```
 
 (Имя сервера в Claude Code — `knowledge-factory`, не переименовывалось вместе с папкой.)

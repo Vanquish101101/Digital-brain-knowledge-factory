@@ -1,6 +1,9 @@
 # Секреты — никогда не коммитить
 Цифровой мозг (digital-brain)/.env
 
+# Данные (вектора, кэш модели, MinIO) — большие бинарники, не для git
+Цифровой мозг (digital-brain)/data/
+
 # Python окружение и кэши
 Цифровой мозг (digital-brain)/.venv/
 Цифровой мозг (digital-brain)/__pycache__/
