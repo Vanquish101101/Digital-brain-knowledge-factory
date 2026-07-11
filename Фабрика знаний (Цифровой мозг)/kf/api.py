@@ -1,0 +1,74 @@
+from dataclasses import dataclass
+
+from kf.config import Settings, load_settings
+from kf.embeddings import embed, get_embedder
+from kf.llm import build_prompt, call_llm
+from kf.store.postgres import connect, ensure_schema
+from kf.store.qdrant_store import ensure_collection
+from kf.store.qdrant_store import get_client as get_qdrant_client
+from kf.store.qdrant_store import search as qdrant_search
+
+COLLECTION = "knowledge"
+VECTOR_SIZE = 384
+
+
+@dataclass
+class KnowledgeSession:
+    settings: Settings
+    pg_conn: object
+    qdrant_client: object
+    embedder: object
+
+
+def open_session() -> KnowledgeSession:
+    settings = load_settings()
+
+    pg_conn = connect(settings)
+    ensure_schema(pg_conn)
+
+    qdrant_client = get_qdrant_client(settings)
+    ensure_collection(qdrant_client, COLLECTION, vector_size=VECTOR_SIZE)
+
+    embedder = get_embedder(settings)
+
+    return KnowledgeSession(
+        settings=settings,
+        pg_conn=pg_conn,
+        qdrant_client=qdrant_client,
+        embedder=embedder,
+    )
+
+
+def semantic_search(session: KnowledgeSession, query: str, limit: int = 5) -> list[dict]:
+    vector = embed(session.embedder, [query])[0]
+    results = qdrant_search(session.qdrant_client, COLLECTION, vector, limit=limit)
+    return [
+        {
+            "path": r["payload"]["path"],
+            "chunk_index": r["payload"]["chunk_index"],
+            "text": r["payload"]["text"],
+            "score": r["score"],
+        }
+        for r in results
+    ]
+
+
+def ask_question(session: KnowledgeSession, question: str, limit: int = 5) -> dict:
+    results = semantic_search(session, question, limit=limit)
+    messages = build_prompt(question, results)
+    answer = call_llm(session.settings, messages)
+    sources = sorted({r["path"] for r in results})
+    return {"answer": answer, "sources": sources}
+
+
+def get_stats(session: KnowledgeSession) -> dict:
+    with session.pg_conn.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM documents")
+        doc_count = cur.fetchone()[0]
+
+    if session.qdrant_client.collection_exists(COLLECTION):
+        chunk_count = session.qdrant_client.get_collection(COLLECTION).points_count
+    else:
+        chunk_count = 0
+
+    return {"documents": doc_count, "chunks": chunk_count}

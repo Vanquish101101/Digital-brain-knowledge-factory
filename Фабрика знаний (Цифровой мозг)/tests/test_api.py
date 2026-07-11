@@ -1,0 +1,52 @@
+import uuid
+
+from kf.api import ask_question, get_stats, open_session, semantic_search
+from kf.store.postgres import needs_ingest, record_ingested
+from kf.store.qdrant_store import delete_by_path, upsert_chunks
+from kf.embeddings import embed
+
+
+def _seed_one_chunk(session, path, text):
+    vector = embed(session.embedder, [text])[0]
+    upsert_chunks(
+        session.qdrant_client,
+        "knowledge",
+        [{"id": str(uuid.uuid4()), "vector": vector, "payload": {"path": path, "chunk_index": 0, "text": text}}],
+    )
+
+
+def test_semantic_search_finds_seeded_chunk():
+    session = open_session()
+    path = f"test://api-{uuid.uuid4()}.md"
+    _seed_one_chunk(session, path, "Рецепт борща с говядиной и свёклой.")
+
+    try:
+        results = semantic_search(session, "как приготовить борщ", limit=3)
+        assert any(r["path"] == path for r in results)
+    finally:
+        delete_by_path(session.qdrant_client, "knowledge", path)
+
+
+def test_ask_question_returns_answer_and_sources():
+    session = open_session()
+    path = f"test://api-{uuid.uuid4()}.md"
+    _seed_one_chunk(session, path, "Столица Франции — Париж.")
+
+    try:
+        result = ask_question(session, "Какая столица у Франции?", limit=3)
+        assert "answer" in result
+        assert isinstance(result["answer"], str) and len(result["answer"]) > 0
+        assert path in result["sources"]
+    finally:
+        delete_by_path(session.qdrant_client, "knowledge", path)
+
+
+def test_get_stats_returns_document_and_chunk_counts():
+    session = open_session()
+
+    stats = get_stats(session)
+
+    assert "documents" in stats
+    assert "chunks" in stats
+    assert stats["documents"] >= 0
+    assert stats["chunks"] >= 0
