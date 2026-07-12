@@ -32,4 +32,12 @@ def sample_frames(video_path: Path, interval_seconds: int) -> tuple[Path, list[P
         check=True,
         capture_output=True,
     )
-    return frames_dir, sorted(frames_dir.glob("frame_*.png"))
+    frames = sorted(frames_dir.glob("frame_*.png"))
+    if not frames:
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(video_path), "-vframes", "1", str(pattern)],
+            check=True,
+            capture_output=True,
+        )
+        frames = sorted(frames_dir.glob("frame_*.png"))
+    return frames_dir, frames

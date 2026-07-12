@@ -37,3 +37,14 @@ def test_sample_frames_produces_expected_frame_count(tmp_path):
     assert len(frames) >= 2
     assert all(f.exists() for f in frames)
     assert all(f.parent == frames_dir for f in frames)
+
+
+def test_sample_frames_returns_at_least_one_frame_for_short_video(tmp_path):
+    video = tmp_path / "short_clip.mp4"
+    _make_test_video(video, duration=2)
+
+    frames_dir, frames = sample_frames(video, interval_seconds=15)
+
+    assert frames_dir.exists()
+    assert len(frames) >= 1
+    assert all(f.exists() for f in frames)
