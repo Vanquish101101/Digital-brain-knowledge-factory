@@ -1,21 +1,36 @@
 from docx import Document
 from fpdf import FPDF
 
+from kf.config import Settings
 from kf.extract import extract_text
+
+
+def _dummy_settings(**overrides) -> Settings:
+    base = dict(
+        postgres_host="localhost", postgres_port=5432, postgres_user="u",
+        postgres_password="p", postgres_db="d", qdrant_url="http://localhost:6333",
+        minio_endpoint="localhost:9000", minio_access_key="a", minio_secret_key="s",
+        data_root="./data", model_cache_dir="./data/model-cache", embedding_model="m",
+        openrouter_api_key="k", llm_model="l", ocr_languages="eng",
+        image_caption_threshold_chars=20, vision_model="v",
+        video_frame_interval_seconds=15, whisper_model_size="small",
+    )
+    base.update(overrides)
+    return Settings(**base)
 
 
 def test_extracts_plain_markdown(tmp_path):
     f = tmp_path / "note.md"
     f.write_text("# Заголовок\n\nТело заметки.", encoding="utf-8")
 
-    assert extract_text(f) == "# Заголовок\n\nТело заметки."
+    assert extract_text(f, _dummy_settings()) == "# Заголовок\n\nТело заметки."
 
 
 def test_extracts_csv_as_text(tmp_path):
     f = tmp_path / "data.csv"
     f.write_text("a,b\n1,2", encoding="utf-8")
 
-    assert extract_text(f) == "a,b\n1,2"
+    assert extract_text(f, _dummy_settings()) == "a,b\n1,2"
 
 
 def test_extracts_docx_paragraphs(tmp_path):
@@ -25,7 +40,7 @@ def test_extracts_docx_paragraphs(tmp_path):
     doc.add_paragraph("Второй абзац.")
     doc.save(f)
 
-    text = extract_text(f)
+    text = extract_text(f, _dummy_settings())
 
     assert "Первый абзац." in text
     assert "Второй абзац." in text
@@ -39,6 +54,53 @@ def test_extracts_pdf_text(tmp_path):
     pdf.cell(text="Hello from test PDF")
     pdf.output(str(f))
 
-    text = extract_text(f)
+    text = extract_text(f, _dummy_settings())
 
     assert "Hello from test PDF" in text
+
+
+def test_dispatches_image_to_ocr(tmp_path, monkeypatch):
+    f = tmp_path / "shot.png"
+    f.write_bytes(b"fakepng")
+    monkeypatch.setattr("kf.extract.extract_text_from_image", lambda path, languages: "OCR TEXT HERE")
+
+    text = extract_text(f, _dummy_settings(image_caption_threshold_chars=5))
+
+    assert text == "OCR TEXT HERE"
+
+
+def test_falls_back_to_caption_when_ocr_text_is_short(tmp_path, monkeypatch):
+    f = tmp_path / "photo.jpg"
+    f.write_bytes(b"fakejpg")
+    monkeypatch.setattr("kf.extract.extract_text_from_image", lambda path, languages: "")
+    monkeypatch.setattr("kf.extract.caption_image", lambda settings, path: "Фото заката над морем")
+
+    text = extract_text(f, _dummy_settings(image_caption_threshold_chars=20))
+
+    assert "Фото заката над морем" in text
+
+
+def test_dispatches_video_to_transcript_and_frames(tmp_path, monkeypatch):
+    f = tmp_path / "clip.mp4"
+    f.write_bytes(b"fakevideo")
+    fake_audio = tmp_path / "audio.wav"
+    fake_frame = tmp_path / "frame_0000.png"
+    fake_frame.write_bytes(b"fakeframe")
+
+    monkeypatch.setattr("kf.extract.extract_audio", lambda path: fake_audio)
+    monkeypatch.setattr(
+        "kf.extract.transcribe_audio", lambda path, model_size, cache_dir: "Привет мир"
+    )
+    monkeypatch.setattr(
+        "kf.extract.sample_frames", lambda path, interval_seconds: [fake_frame]
+    )
+    monkeypatch.setattr(
+        "kf.extract.extract_text_from_image", lambda path, languages: "текст на кадре"
+    )
+
+    text = extract_text(f, _dummy_settings(image_caption_threshold_chars=5))
+
+    assert "[Транскрипт]" in text
+    assert "Привет мир" in text
+    assert "[Кадр 00:00]" in text
+    assert "текст на кадре" in text
