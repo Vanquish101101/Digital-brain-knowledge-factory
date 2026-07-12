@@ -31,7 +31,9 @@ def test_sample_frames_produces_expected_frame_count(tmp_path):
     video = tmp_path / "clip.mp4"
     _make_test_video(video, duration=3)
 
-    frames = sample_frames(video, interval_seconds=1)
+    frames_dir, frames = sample_frames(video, interval_seconds=1)
 
+    assert frames_dir.exists()
     assert len(frames) >= 2
     assert all(f.exists() for f in frames)
+    assert all(f.parent == frames_dir for f in frames)

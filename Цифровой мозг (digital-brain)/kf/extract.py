@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 from docx import Document
@@ -34,20 +35,28 @@ def _extract_image(path: Path, settings: Settings) -> str:
 
 def _extract_video(path: Path, settings: Settings) -> str:
     audio_path = extract_audio(path)
-    transcript = transcribe_audio(
-        audio_path, model_size=settings.whisper_model_size, cache_dir=settings.model_cache_dir
-    )
+    frames_dir = None
+    try:
+        transcript = transcribe_audio(
+            audio_path, model_size=settings.whisper_model_size, cache_dir=settings.model_cache_dir
+        )
 
-    frames = sample_frames(path, interval_seconds=settings.video_frame_interval_seconds)
-    frame_blocks = []
-    for i, frame_path in enumerate(frames):
-        timestamp_seconds = i * settings.video_frame_interval_seconds
-        minutes, seconds = divmod(timestamp_seconds, 60)
-        frame_text = _extract_image(frame_path, settings)
-        frame_blocks.append(f"[Кадр {minutes:02d}:{seconds:02d}]\n{frame_text}")
+        frames_dir, frames = sample_frames(
+            path, interval_seconds=settings.video_frame_interval_seconds
+        )
+        frame_blocks = []
+        for i, frame_path in enumerate(frames):
+            timestamp_seconds = i * settings.video_frame_interval_seconds
+            minutes, seconds = divmod(timestamp_seconds, 60)
+            frame_text = _extract_image(frame_path, settings)
+            frame_blocks.append(f"[Кадр {minutes:02d}:{seconds:02d}]\n{frame_text}")
 
-    parts = [f"[Транскрипт]\n{transcript}"] + frame_blocks
-    return "\n\n".join(parts).strip()
+        parts = [f"[Транскрипт]\n{transcript}"] + frame_blocks
+        return "\n\n".join(parts).strip()
+    finally:
+        Path(audio_path).unlink(missing_ok=True)
+        if frames_dir is not None:
+            shutil.rmtree(frames_dir, ignore_errors=True)
 
 
 def extract_text(path: Path, settings: Settings) -> str:

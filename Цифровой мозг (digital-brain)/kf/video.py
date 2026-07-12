@@ -20,7 +20,7 @@ def extract_audio(video_path: Path) -> Path:
     return output_path
 
 
-def sample_frames(video_path: Path, interval_seconds: int) -> list[Path]:
+def sample_frames(video_path: Path, interval_seconds: int) -> tuple[Path, list[Path]]:
     frames_dir = Path(tempfile.mkdtemp(prefix="kf_frames_"))
     pattern = frames_dir / "frame_%04d.png"
     subprocess.run(
@@ -32,4 +32,4 @@ def sample_frames(video_path: Path, interval_seconds: int) -> list[Path]:
         check=True,
         capture_output=True,
     )
-    return sorted(frames_dir.glob("frame_*.png"))
+    return frames_dir, sorted(frames_dir.glob("frame_*.png"))
