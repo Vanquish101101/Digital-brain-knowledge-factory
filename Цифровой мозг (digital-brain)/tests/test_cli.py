@@ -15,18 +15,33 @@ def test_stats_reports_document_and_chunk_counts():
     assert "Чанков" in result.output
 
 
-def test_ingest_reports_summary(tmp_path):
+def test_ingest_reports_summary(tmp_path, monkeypatch):
     (tmp_path / "cli-note.md").write_text("Заметка для теста CLI ingest.", encoding="utf-8")
+    monkeypatch.setenv("SYNTHESIS_NOTES_DIR", str(tmp_path / "notes"))
+    monkeypatch.setattr(
+        "kf.ingest.synthesize_note",
+        lambda settings, text, source_path: f"Заметка про {source_path}",
+    )
+
+    # Clean up any leftover data from previous runs before testing
+    settings = load_settings()
+    conn = connect(settings)
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM documents WHERE path LIKE '%cli-note%'")
+    conn.commit()
+    conn.close()
+
     runner = CliRunner()
 
     result = runner.invoke(cli, ["ingest", "--source", str(tmp_path)])
 
     assert result.exit_code == 0
-    assert "проиндексировано: 1" in result.output
+    assert "проиндексировано: 2" in result.output
+    assert "заметок синтезировано: 1" in result.output
 
-    settings = load_settings()
+    # Clean up after test
     conn = connect(settings)
     with conn.cursor() as cur:
-        cur.execute("DELETE FROM documents WHERE path = 'cli-note.md'")
+        cur.execute("DELETE FROM documents WHERE path LIKE '%cli-note%'")
     conn.commit()
     conn.close()

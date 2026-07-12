@@ -49,7 +49,9 @@ def ingest(source: Path | None):
         f"проиндексировано: {stats.files_ingested}, "
         f"пропущено (без изменений): {stats.files_skipped}, "
         f"ошибок: {stats.files_failed}, "
-        f"чанков записано: {stats.chunks_written}"
+        f"чанков записано: {stats.chunks_written}, "
+        f"заметок синтезировано: {stats.notes_synthesized}, "
+        f"ошибок синтеза: {stats.notes_failed}"
     )
 
 
