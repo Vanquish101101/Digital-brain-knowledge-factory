@@ -31,6 +31,7 @@ def deps():
         minio_client=minio_client,
         embedder=embedder,
         collection=COLLECTION,
+        settings=settings,
     )
     yield d
 
@@ -96,3 +97,14 @@ def test_nested_file_uses_forward_slash_object_key(tmp_path, deps):
     ingest_directory(tmp_path, deps)
 
     assert file_exists(deps.minio_client, "001 Подпапка (со скобками)/note1.md") is True
+
+
+def test_failed_file_does_not_abort_whole_run(tmp_path, deps):
+    (tmp_path / "note1.md").write_text("Годная заметка.", encoding="utf-8")
+    (tmp_path / "broken.png").write_bytes(b"not a real png")
+
+    stats = ingest_directory(tmp_path, deps)
+
+    assert stats.files_scanned == 2
+    assert stats.files_ingested == 1
+    assert stats.files_failed == 1

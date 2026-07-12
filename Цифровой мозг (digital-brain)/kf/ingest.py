@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kf.chunking import chunk_text
+from kf.config import Settings
 from kf.embeddings import embed
 from kf.extract import extract_text
 from kf.hashing import sha256_of_file
@@ -21,6 +22,7 @@ class IngestDeps:
     minio_client: object
     embedder: object
     collection: str
+    settings: Settings
     max_chars: int = 1500
     overlap: int = 150
 
@@ -30,6 +32,7 @@ class IngestStats:
     files_scanned: int = 0
     files_ingested: int = 0
     files_skipped: int = 0
+    files_failed: int = 0
     chunks_written: int = 0
 
 
@@ -52,7 +55,13 @@ def ingest_directory(source_dir: Path, deps: IngestDeps) -> IngestStats:
             stats.files_skipped += 1
             continue
 
-        text = extract_text(path)
+        try:
+            text = extract_text(path, deps.settings)
+        except Exception as exc:
+            print(f"[ingest] пропускаю {rel_key}: {exc}")
+            stats.files_failed += 1
+            continue
+
         chunks = chunk_text(text, max_chars=deps.max_chars, overlap=deps.overlap)
         if chunks:
             vectors = embed(deps.embedder, chunks)

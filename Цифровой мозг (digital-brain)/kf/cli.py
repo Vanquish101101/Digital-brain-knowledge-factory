@@ -21,6 +21,7 @@ def _build_ingest_deps(settings) -> IngestDeps:
         minio_client=minio_client,
         embedder=session.embedder,
         collection=COLLECTION,
+        settings=settings,
     )
 
 
@@ -47,6 +48,7 @@ def ingest(source: Path | None):
         f"Готово. просканировано: {stats.files_scanned}, "
         f"проиндексировано: {stats.files_ingested}, "
         f"пропущено (без изменений): {stats.files_skipped}, "
+        f"ошибок: {stats.files_failed}, "
         f"чанков записано: {stats.chunks_written}"
     )
 
