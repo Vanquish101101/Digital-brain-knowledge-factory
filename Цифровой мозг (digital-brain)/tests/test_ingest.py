@@ -129,6 +129,16 @@ def test_writes_synthesized_note_file_to_notes_dir(tmp_path, deps):
     assert note_path.read_text(encoding="utf-8") == "Синтез-заметка про note1.md"
 
 
+def test_note_object_key_follows_configured_notes_dir_name(tmp_path, deps):
+    custom_notes_dir = tmp_path.parent / "custom-notes-dir"
+    deps.settings.synthesis_notes_dir = str(custom_notes_dir)
+    (tmp_path / "note1.md").write_text("Годная заметка.", encoding="utf-8")
+
+    ingest_directory(tmp_path, deps)
+
+    assert file_exists(deps.minio_client, "custom-notes-dir/note1.md.md") is True
+
+
 def test_synthesis_failure_does_not_lose_source_chunks(tmp_path, deps, monkeypatch):
     (tmp_path / "note1.md").write_text("Годная заметка, но синтез упадёт.", encoding="utf-8")
 

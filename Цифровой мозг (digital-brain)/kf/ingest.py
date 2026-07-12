@@ -14,7 +14,6 @@ from kf.store.qdrant_store import upsert_chunks
 from kf.synthesize import synthesize_note
 
 _NAMESPACE = uuid.UUID("12345678-1234-5678-1234-567812345678")
-NOTES_PATH_PREFIX = "Синтезированные данные (synthesized-notes)"
 
 
 @dataclass
@@ -77,7 +76,7 @@ def _synthesize_and_index_note(
     note_path.write_text(note_text, encoding="utf-8")
     stats.notes_synthesized += 1
 
-    note_rel_key = f"{NOTES_PATH_PREFIX}/{rel_key}.md"
+    note_rel_key = f"{notes_dir.name}/{rel_key}.md"
     note_hash = sha256_of_file(note_path)
     if needs_ingest(deps.pg_conn, note_rel_key, note_hash):
         _store_text(note_text, note_rel_key, note_path, deps, stats)
