@@ -1,10 +1,13 @@
+import os
 import subprocess
 import tempfile
 from pathlib import Path
 
 
 def extract_audio(video_path: Path) -> Path:
-    output_path = Path(tempfile.gettempdir()) / f"{Path(video_path).stem}_audio.wav"
+    fd, output_path_str = tempfile.mkstemp(prefix=f"{Path(video_path).stem}_", suffix="_audio.wav")
+    os.close(fd)
+    output_path = Path(output_path_str)
     subprocess.run(
         [
             "ffmpeg", "-y", "-i", str(video_path),
