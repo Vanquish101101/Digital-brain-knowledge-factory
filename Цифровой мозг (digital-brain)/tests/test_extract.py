@@ -14,6 +14,7 @@ def _dummy_settings(**overrides) -> Settings:
         openrouter_api_key="k", llm_model="l", ocr_languages="eng",
         image_caption_threshold_chars=20, vision_model="v",
         video_frame_interval_seconds=15, whisper_model_size="small",
+        max_video_frames=20,
     )
     base.update(overrides)
     return Settings(**base)
@@ -94,7 +95,7 @@ def test_dispatches_video_to_transcript_and_frames(tmp_path, monkeypatch):
         "kf.extract.transcribe_audio", lambda path, model_size, cache_dir: "Привет мир"
     )
     monkeypatch.setattr(
-        "kf.extract.sample_frames", lambda path, interval_seconds: (fake_frames_dir, [fake_frame])
+        "kf.extract.sample_frames", lambda path, interval_seconds, max_frames: (fake_frames_dir, [fake_frame])
     )
     monkeypatch.setattr(
         "kf.extract.extract_text_from_image", lambda path, languages: "текст на кадре"
@@ -123,7 +124,7 @@ def test_extract_video_cleans_up_temp_audio_and_frames(tmp_path, monkeypatch):
         "kf.extract.transcribe_audio", lambda path, model_size, cache_dir: "Привет мир"
     )
     monkeypatch.setattr(
-        "kf.extract.sample_frames", lambda path, interval_seconds: (fake_frames_dir, [fake_frame])
+        "kf.extract.sample_frames", lambda path, interval_seconds, max_frames: (fake_frames_dir, [fake_frame])
     )
     monkeypatch.setattr(
         "kf.extract.extract_text_from_image", lambda path, languages: "текст на кадре"
@@ -153,7 +154,7 @@ def test_extract_video_cleans_up_temp_files_even_on_error(tmp_path, monkeypatch)
         "kf.extract.transcribe_audio", lambda path, model_size, cache_dir: "Привет мир"
     )
     monkeypatch.setattr(
-        "kf.extract.sample_frames", lambda path, interval_seconds: (fake_frames_dir, [fake_frame])
+        "kf.extract.sample_frames", lambda path, interval_seconds, max_frames: (fake_frames_dir, [fake_frame])
     )
     monkeypatch.setattr("kf.extract.extract_text_from_image", _boom)
 
@@ -166,3 +167,27 @@ def test_extract_video_cleans_up_temp_files_even_on_error(tmp_path, monkeypatch)
     assert raised
     assert not fake_audio.exists()
     assert not fake_frames_dir.exists()
+
+
+def test_extract_video_passes_max_frames_cap_to_sample_frames(tmp_path, monkeypatch):
+    f = tmp_path / "clip.mp4"
+    f.write_bytes(b"fakevideo")
+    fake_audio = tmp_path / "audio.wav"
+    fake_frames_dir = tmp_path / "frames"
+    fake_frames_dir.mkdir()
+
+    received = {}
+
+    def _fake_sample_frames(path, interval_seconds, max_frames):
+        received["max_frames"] = max_frames
+        return fake_frames_dir, []
+
+    monkeypatch.setattr("kf.extract.extract_audio", lambda path: fake_audio)
+    monkeypatch.setattr(
+        "kf.extract.transcribe_audio", lambda path, model_size, cache_dir: "Привет мир"
+    )
+    monkeypatch.setattr("kf.extract.sample_frames", _fake_sample_frames)
+
+    extract_text(f, _dummy_settings(max_video_frames=7))
+
+    assert received["max_frames"] == 7

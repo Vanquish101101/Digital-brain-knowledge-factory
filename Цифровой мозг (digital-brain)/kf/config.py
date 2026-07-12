@@ -25,6 +25,7 @@ class Settings:
     vision_model: str
     video_frame_interval_seconds: int
     whisper_model_size: str
+    max_video_frames: int
 
 
 def load_settings() -> Settings:
@@ -51,4 +52,5 @@ def load_settings() -> Settings:
         vision_model=os.environ.get("VISION_MODEL", "google/gemini-2.5-flash"),
         video_frame_interval_seconds=int(os.environ.get("VIDEO_FRAME_INTERVAL_SECONDS", "15")),
         whisper_model_size=os.environ.get("WHISPER_MODEL_SIZE", "small"),
+        max_video_frames=int(os.environ.get("MAX_VIDEO_FRAMES", "20")),
     )

@@ -48,3 +48,16 @@ def test_sample_frames_returns_at_least_one_frame_for_short_video(tmp_path):
     assert frames_dir.exists()
     assert len(frames) >= 1
     assert all(f.exists() for f in frames)
+
+
+def test_sample_frames_respects_max_frames_cap(tmp_path):
+    video = tmp_path / "long_clip.mp4"
+    _make_test_video(video, duration=5)
+
+    uncapped_dir, uncapped_frames = sample_frames(video, interval_seconds=1)
+    assert len(uncapped_frames) >= 4
+
+    frames_dir, frames = sample_frames(video, interval_seconds=1, max_frames=2)
+
+    assert len(frames) <= 2
+    assert all(f.exists() for f in frames)

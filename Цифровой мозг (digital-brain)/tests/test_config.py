@@ -62,6 +62,7 @@ def test_defaults_image_and_video_settings(monkeypatch):
     monkeypatch.delenv("VISION_MODEL", raising=False)
     monkeypatch.delenv("VIDEO_FRAME_INTERVAL_SECONDS", raising=False)
     monkeypatch.delenv("WHISPER_MODEL_SIZE", raising=False)
+    monkeypatch.delenv("MAX_VIDEO_FRAMES", raising=False)
 
     settings = load_settings()
 
@@ -70,3 +71,4 @@ def test_defaults_image_and_video_settings(monkeypatch):
     assert settings.vision_model == "google/gemini-2.5-flash"
     assert settings.video_frame_interval_seconds == 15
     assert settings.whisper_model_size == "small"
+    assert settings.max_video_frames == 20

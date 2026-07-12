@@ -42,7 +42,9 @@ def _extract_video(path: Path, settings: Settings) -> str:
         )
 
         frames_dir, frames = sample_frames(
-            path, interval_seconds=settings.video_frame_interval_seconds
+            path,
+            interval_seconds=settings.video_frame_interval_seconds,
+            max_frames=settings.max_video_frames,
         )
         frame_blocks = []
         for i, frame_path in enumerate(frames):
