@@ -1,3 +1,5 @@
+import subprocess
+
 from docx import Document
 from fpdf import FPDF
 
@@ -191,3 +193,29 @@ def test_extract_video_passes_max_frames_cap_to_sample_frames(tmp_path, monkeypa
     extract_text(f, _dummy_settings(max_video_frames=7))
 
     assert received["max_frames"] == 7
+
+
+def test_video_without_audio_track_still_analyzes_frames(tmp_path, monkeypatch):
+    f = tmp_path / "clip.mp4"
+    f.write_bytes(b"fakevideo")
+    fake_frames_dir = tmp_path / "frames"
+    fake_frames_dir.mkdir()
+    fake_frame = fake_frames_dir / "frame_0000.png"
+    fake_frame.write_bytes(b"fakeframe")
+
+    def _no_audio_stream(path):
+        raise subprocess.CalledProcessError(1, "ffmpeg")
+
+    monkeypatch.setattr("kf.extract.extract_audio", _no_audio_stream)
+    monkeypatch.setattr(
+        "kf.extract.sample_frames", lambda path, interval_seconds, max_frames: (fake_frames_dir, [fake_frame])
+    )
+    monkeypatch.setattr(
+        "kf.extract.extract_text_from_image", lambda path, languages: "текст на кадре"
+    )
+
+    text = extract_text(f, _dummy_settings(image_caption_threshold_chars=5))
+
+    assert "[Транскрипт]" not in text
+    assert "[Кадр 00:00]" in text
+    assert "текст на кадре" in text
