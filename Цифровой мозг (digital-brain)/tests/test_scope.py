@@ -15,8 +15,12 @@ def test_includes_docx():
     assert should_index(Path("docs/report.docx")) is True
 
 
-def test_excludes_video():
-    assert should_index(Path("clips/intro.mp4")) is False
+def test_includes_image():
+    assert should_index(Path("photos/shot.png")) is True
+
+
+def test_includes_video():
+    assert should_index(Path("clips/intro.mp4")) is True
 
 
 def test_excludes_archive():

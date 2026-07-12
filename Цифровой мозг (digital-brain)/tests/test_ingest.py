@@ -80,7 +80,7 @@ def test_changed_file_gets_reingested(tmp_path, deps):
 
 def test_ignores_excluded_files(tmp_path, deps):
     (tmp_path / "note1.md").write_text("Годная заметка.", encoding="utf-8")
-    (tmp_path / "video.mp4").write_bytes(b"not a real video")
+    (tmp_path / "archive.zip").write_bytes(b"not a real archive")
 
     stats = ingest_directory(tmp_path, deps)
 
