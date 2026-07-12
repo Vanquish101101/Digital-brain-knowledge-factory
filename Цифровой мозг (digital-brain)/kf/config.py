@@ -20,6 +20,11 @@ class Settings:
     embedding_model: str
     openrouter_api_key: str
     llm_model: str
+    ocr_languages: str
+    image_caption_threshold_chars: int
+    vision_model: str
+    video_frame_interval_seconds: int
+    whisper_model_size: str
 
 
 def load_settings() -> Settings:
@@ -41,4 +46,9 @@ def load_settings() -> Settings:
         ),
         openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         llm_model=os.environ.get("LLM_MODEL", "deepseek/deepseek-v4-flash"),
+        ocr_languages=os.environ.get("OCR_LANGUAGES", "rus+eng"),
+        image_caption_threshold_chars=int(os.environ.get("IMAGE_CAPTION_THRESHOLD_CHARS", "20")),
+        vision_model=os.environ.get("VISION_MODEL", "google/gemini-2.5-flash"),
+        video_frame_interval_seconds=int(os.environ.get("VIDEO_FRAME_INTERVAL_SECONDS", "15")),
+        whisper_model_size=os.environ.get("WHISPER_MODEL_SIZE", "small"),
     )

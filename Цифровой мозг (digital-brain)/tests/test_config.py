@@ -49,3 +49,24 @@ def test_defaults_host_and_ports(monkeypatch):
     assert settings.postgres_host == "localhost"
     assert settings.postgres_port == 5432
     assert settings.qdrant_url == "http://localhost:6333"
+
+
+def test_defaults_image_and_video_settings(monkeypatch):
+    monkeypatch.setenv("POSTGRES_USER", "u")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "p")
+    monkeypatch.setenv("POSTGRES_DB", "d")
+    monkeypatch.setenv("MINIO_ROOT_USER", "m")
+    monkeypatch.setenv("MINIO_ROOT_PASSWORD", "s")
+    monkeypatch.delenv("OCR_LANGUAGES", raising=False)
+    monkeypatch.delenv("IMAGE_CAPTION_THRESHOLD_CHARS", raising=False)
+    monkeypatch.delenv("VISION_MODEL", raising=False)
+    monkeypatch.delenv("VIDEO_FRAME_INTERVAL_SECONDS", raising=False)
+    monkeypatch.delenv("WHISPER_MODEL_SIZE", raising=False)
+
+    settings = load_settings()
+
+    assert settings.ocr_languages == "rus+eng"
+    assert settings.image_caption_threshold_chars == 20
+    assert settings.vision_model == "google/gemini-2.5-flash"
+    assert settings.video_frame_interval_seconds == 15
+    assert settings.whisper_model_size == "small"
