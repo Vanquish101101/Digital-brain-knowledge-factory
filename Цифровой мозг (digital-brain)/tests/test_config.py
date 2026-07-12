@@ -72,3 +72,16 @@ def test_defaults_image_and_video_settings(monkeypatch):
     assert settings.video_frame_interval_seconds == 15
     assert settings.whisper_model_size == "small"
     assert settings.max_video_frames == 20
+
+
+def test_defaults_synthesis_notes_dir(monkeypatch):
+    monkeypatch.setenv("POSTGRES_USER", "u")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "p")
+    monkeypatch.setenv("POSTGRES_DB", "d")
+    monkeypatch.setenv("MINIO_ROOT_USER", "m")
+    monkeypatch.setenv("MINIO_ROOT_PASSWORD", "s")
+    monkeypatch.delenv("SYNTHESIS_NOTES_DIR", raising=False)
+
+    settings = load_settings()
+
+    assert settings.synthesis_notes_dir == "./Синтезированные данные (synthesized-notes)"

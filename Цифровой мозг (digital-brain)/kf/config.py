@@ -26,6 +26,7 @@ class Settings:
     video_frame_interval_seconds: int
     whisper_model_size: str
     max_video_frames: int
+    synthesis_notes_dir: str
 
 
 def load_settings() -> Settings:
@@ -53,4 +54,7 @@ def load_settings() -> Settings:
         video_frame_interval_seconds=int(os.environ.get("VIDEO_FRAME_INTERVAL_SECONDS", "15")),
         whisper_model_size=os.environ.get("WHISPER_MODEL_SIZE", "small"),
         max_video_frames=int(os.environ.get("MAX_VIDEO_FRAMES", "20")),
+        synthesis_notes_dir=os.environ.get(
+            "SYNTHESIS_NOTES_DIR", "./Синтезированные данные (synthesized-notes)"
+        ),
     )

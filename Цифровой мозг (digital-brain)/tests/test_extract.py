@@ -14,7 +14,7 @@ def _dummy_settings(**overrides) -> Settings:
         openrouter_api_key="k", llm_model="l", ocr_languages="eng",
         image_caption_threshold_chars=20, vision_model="v",
         video_frame_interval_seconds=15, whisper_model_size="small",
-        max_video_frames=20,
+        max_video_frames=20, synthesis_notes_dir="./notes",
     )
     base.update(overrides)
     return Settings(**base)
