@@ -9,6 +9,8 @@ def test_transcribes_synthesized_speech(tmp_path):
     engine.save_to_file("testing one two three", str(audio_path))
     engine.runAndWait()
 
-    text = transcribe_audio(audio_path, model_size="small", cache_dir=str(tmp_path / "model-cache"))
+    text = transcribe_audio(
+        audio_path, model_size="small", cache_dir=str(tmp_path / "model-cache"), language="en"
+    )
 
     assert "test" in text.lower()
