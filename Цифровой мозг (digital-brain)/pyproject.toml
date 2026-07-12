@@ -5,6 +5,7 @@ description = "Add your description here"
 requires-python = ">=3.12"
 dependencies = [
     "click>=8.4.2",
+    "faster-whisper>=1.1.0",
     "fastembed>=0.8.0",
     "httpx>=0.28.1",
     "mcp[cli]>=1.28.1",
@@ -22,6 +23,7 @@ dependencies = [
 dev = [
     "fpdf2>=2.8.7",
     "pytest>=9.1.1",
+    "pyttsx3>=2.98",
 ]
 
 [tool.pytest.ini_options]
