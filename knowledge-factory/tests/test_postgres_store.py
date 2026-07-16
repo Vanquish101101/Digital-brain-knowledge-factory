@@ -1,7 +1,7 @@
 import pytest
 
 from kf.config import load_settings
-from kf.store.postgres import connect, ensure_schema, needs_ingest, record_ingested
+from kf.store.postgres import connect, ensure_schema, needs_ingest, record_ingested, list_paths, path_known
 
 
 @pytest.fixture
@@ -40,3 +40,33 @@ def test_record_ingested_is_idempotent(conn):
     record_ingested(conn, "test://note.md", "hash-b")
 
     assert needs_ingest(conn, "test://note.md", "hash-b") is False
+
+
+def test_path_known_false_for_unseen_path(conn):
+    assert path_known(conn, "test://unknown.md") is False
+
+
+def test_path_known_true_after_record_ingested(conn):
+    record_ingested(conn, "test://known.md", "hash-a")
+
+    assert path_known(conn, "test://known.md") is True
+
+
+def test_list_paths_returns_all_recorded_paths(conn):
+    record_ingested(conn, "test://a.md", "hash-a")
+    record_ingested(conn, "test://b.md", "hash-b")
+
+    paths = list_paths(conn)
+
+    assert "test://a.md" in paths
+    assert "test://b.md" in paths
+
+
+def test_list_paths_excludes_prefix(conn):
+    record_ingested(conn, "test://a.md", "hash-a")
+    record_ingested(conn, "test://notes/a.md.md", "hash-b")
+
+    paths = list_paths(conn, exclude_prefix="test://notes/")
+
+    assert "test://a.md" in paths
+    assert "test://notes/a.md.md" not in paths

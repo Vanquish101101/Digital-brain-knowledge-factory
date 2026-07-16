@@ -50,3 +50,19 @@ def record_ingested(conn: psycopg.Connection, path: str, sha256: str) -> None:
             (path, sha256),
         )
     conn.commit()
+
+
+def path_known(conn: psycopg.Connection, path: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM documents WHERE path = %s", (path,))
+        return cur.fetchone() is not None
+
+
+def list_paths(conn: psycopg.Connection, exclude_prefix: str = "") -> set[str]:
+    with conn.cursor() as cur:
+        cur.execute("SELECT path FROM documents")
+        rows = cur.fetchall()
+    paths = {row[0] for row in rows}
+    if exclude_prefix:
+        paths = {p for p in paths if not p.startswith(exclude_prefix)}
+    return paths
