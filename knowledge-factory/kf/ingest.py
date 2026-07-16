@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from kf.chunking import chunk_text
@@ -7,9 +8,10 @@ from kf.config import Settings
 from kf.embeddings import embed
 from kf.extract import extract_text
 from kf.hashing import sha256_of_file
+from kf.journal import append_entries, detect_deleted, extract_description, format_entry
 from kf.scope import should_index
 from kf.store.minio_store import upload_file
-from kf.store.postgres import needs_ingest, record_ingested
+from kf.store.postgres import list_paths, needs_ingest, path_known, record_ingested
 from kf.store.qdrant_store import upsert_chunks
 from kf.synthesize import synthesize_note
 
@@ -37,6 +39,8 @@ class IngestStats:
     chunks_written: int = 0
     notes_synthesized: int = 0
     notes_failed: int = 0
+    journal_entries_written: int = 0
+    deleted_detected: int = 0
 
 
 def _point_id(path: str, chunk_index: int) -> str:
@@ -62,13 +66,13 @@ def _store_text(text: str, rel_key: str, path: Path, deps: IngestDeps, stats: In
 
 def _synthesize_and_index_note(
     text: str, rel_key: str, deps: IngestDeps, stats: IngestStats
-) -> None:
+) -> str | None:
     try:
         note_text = synthesize_note(deps.settings, text, rel_key)
     except Exception as exc:
         print(f"[ingest] синтез не удался для {rel_key}: {exc}")
         stats.notes_failed += 1
-        return
+        return None
 
     notes_dir = Path(deps.settings.synthesis_notes_dir)
     note_path = notes_dir / f"{rel_key}.md"
@@ -83,10 +87,15 @@ def _synthesize_and_index_note(
         record_ingested(deps.pg_conn, note_rel_key, note_hash)
         stats.files_ingested += 1
 
+    return note_text
+
 
 def ingest_directory(source_dir: Path, deps: IngestDeps) -> IngestStats:
     stats = IngestStats()
     notes_dir = Path(deps.settings.synthesis_notes_dir).resolve()
+    journal_entries: list[str] = []
+    seen_paths: set[str] = set()
+    today = date.today().isoformat()
 
     for path in sorted(source_dir.rglob("*")):
         if not path.is_file() or not should_index(path):
@@ -94,8 +103,10 @@ def ingest_directory(source_dir: Path, deps: IngestDeps) -> IngestStats:
 
         rel_key = path.relative_to(source_dir).as_posix()
         stats.files_scanned += 1
+        seen_paths.add(rel_key)
 
         file_hash = sha256_of_file(path)
+        is_new = not path_known(deps.pg_conn, rel_key)
         if not needs_ingest(deps.pg_conn, rel_key, file_hash):
             stats.files_skipped += 1
             continue
@@ -112,7 +123,24 @@ def ingest_directory(source_dir: Path, deps: IngestDeps) -> IngestStats:
         stats.files_ingested += 1
 
         is_note = notes_dir in path.resolve().parents
+        note_text = None
         if not is_note:
-            _synthesize_and_index_note(text, rel_key, deps, stats)
+            note_text = _synthesize_and_index_note(text, rel_key, deps, stats)
+
+        section = rel_key.split("/", 1)[0]
+        description = extract_description(note_text) if note_text else ""
+        action = "добавлено" if is_new else "изменено"
+        journal_entries.append(format_entry(action, rel_key, section, description, today))
+
+    notes_prefix = f"{notes_dir.name}/"
+    known_paths = list_paths(deps.pg_conn, exclude_prefix=notes_prefix)
+    deleted = detect_deleted(known_paths, seen_paths)
+    for deleted_path in sorted(deleted):
+        section = deleted_path.split("/", 1)[0]
+        journal_entries.append(format_entry("удалено", deleted_path, section, "", today))
+    stats.deleted_detected = len(deleted)
+    stats.journal_entries_written = len(journal_entries)
+
+    append_entries(journal_entries, source_dir.parent / "Журнал знаний.md")
 
     return stats

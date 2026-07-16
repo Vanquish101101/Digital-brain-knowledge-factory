@@ -166,3 +166,45 @@ def test_files_inside_notes_dir_are_not_resynthesized(tmp_path, deps):
     assert stats.files_scanned == 1
     assert stats.files_ingested == 1
     assert stats.notes_synthesized == 0
+
+
+def test_journal_logs_added_then_changed_actions(tmp_path, deps):
+    f = tmp_path / "note-journal.md"
+    f.write_text("Первая версия заметки.", encoding="utf-8")
+    ingest_directory(tmp_path, deps)
+
+    f.write_text("Изменённая версия заметки.", encoding="utf-8")
+    ingest_directory(tmp_path, deps)
+
+    journal_path = tmp_path.parent / "Журнал знаний.md"
+    content = journal_path.read_text(encoding="utf-8")
+    assert "добавлено | note-journal.md" in content
+    assert "изменено | note-journal.md" in content
+
+
+def test_deleted_file_is_logged_in_journal(tmp_path, deps):
+    f = tmp_path / "note-to-delete.md"
+    f.write_text("Заметка, которую скоро удалим.", encoding="utf-8")
+    ingest_directory(tmp_path, deps)
+
+    f.unlink()
+    stats = ingest_directory(tmp_path, deps)
+
+    journal_path = tmp_path.parent / "Журнал знаний.md"
+    content = journal_path.read_text(encoding="utf-8")
+    assert "удалено | note-to-delete.md" in content
+    assert stats.deleted_detected >= 1
+
+
+def test_journal_entry_uses_synthesis_note_first_line_as_description(tmp_path, deps, monkeypatch):
+    monkeypatch.setattr(
+        "kf.ingest.synthesize_note",
+        lambda settings, text, source_path: "1. Заметка о рецепте борща.\n2. Ключевые идеи...",
+    )
+    (tmp_path / "note-desc.md").write_text("Заметка про борщ.", encoding="utf-8")
+
+    ingest_directory(tmp_path, deps)
+
+    journal_path = tmp_path.parent / "Журнал знаний.md"
+    content = journal_path.read_text(encoding="utf-8")
+    assert "Заметка о рецепте борща." in content
