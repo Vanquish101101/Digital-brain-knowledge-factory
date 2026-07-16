@@ -38,6 +38,7 @@ def test_ingest_reports_summary(tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert "проиндексировано: 2" in result.output
     assert "заметок синтезировано: 1" in result.output
+    assert "записей в журнале знаний" in result.output
 
     # Clean up after test
     conn = connect(settings)

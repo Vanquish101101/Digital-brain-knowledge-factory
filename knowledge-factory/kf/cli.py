@@ -51,8 +51,14 @@ def ingest(source: Path | None):
         f"ошибок: {stats.files_failed}, "
         f"чанков записано: {stats.chunks_written}, "
         f"заметок синтезировано: {stats.notes_synthesized}, "
-        f"ошибок синтеза: {stats.notes_failed}"
+        f"ошибок синтеза: {stats.notes_failed}, "
+        f"записей в журнале знаний: {stats.journal_entries_written}"
     )
+    if stats.deleted_detected:
+        click.echo(
+            f"⚠ Обнаружены удалённые файлы: {stats.deleted_detected}. "
+            f"Проверьте 'Журнал знаний.md' — решение об очистке базы принимается отдельно."
+        )
 
 
 @cli.command()
