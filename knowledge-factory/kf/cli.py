@@ -8,7 +8,7 @@ from kf.ingest import IngestDeps, ingest_directory
 from kf.store.minio_store import ensure_bucket
 from kf.store.minio_store import get_client as get_minio_client
 
-DEFAULT_SOURCE = Path(__file__).resolve().parent.parent.parent / "Хранилище входных данных"
+DEFAULT_SOURCE = Path(__file__).resolve().parent.parent.parent / "raw-data-repository"
 
 
 def _build_ingest_deps(settings) -> IngestDeps:
@@ -35,7 +35,7 @@ def cli():
     "--source",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     default=None,
-    help="Папка для индексации (по умолчанию — Хранилище входных данных).",
+    help="Папка для индексации (по умолчанию — raw-data-repository).",
 )
 def ingest(source: Path | None):
     """Проиндексировать файлы: векторы -> Qdrant, текст -> Postgres, сырьё -> MinIO."""
