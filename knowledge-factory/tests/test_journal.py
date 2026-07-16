@@ -13,6 +13,12 @@ def test_extract_description_strips_leading_dash():
     assert extract_description(note) == "Курс по 3D-моделированию в Blender."
 
 
+def test_extract_description_preserves_leading_digit_that_is_not_numbering():
+    note = "3D-моделирование в Blender.\nПодробности дальше."
+
+    assert extract_description(note) == "3D-моделирование в Blender."
+
+
 def test_extract_description_truncates_long_first_line():
     note = "x" * 200
 

@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 JOURNAL_HEADER = (
@@ -6,7 +7,7 @@ JOURNAL_HEADER = (
     "пополняется при каждом запуске kf.py ingest.\n\n"
 )
 
-_STRIP_CHARS = "0123456789.-*# \t"
+_NUMBERING_PATTERN = re.compile(r"^\s*(?:\d+[.)]|[-*#])\s*")
 
 
 def extract_description(note_text: str) -> str:
@@ -14,7 +15,7 @@ def extract_description(note_text: str) -> str:
     if not stripped:
         return ""
     first_line = stripped.splitlines()[0]
-    cleaned = first_line.lstrip(_STRIP_CHARS)
+    cleaned = _NUMBERING_PATTERN.sub("", first_line, count=1)
     return cleaned[:150]
 
 
