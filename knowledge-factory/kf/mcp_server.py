@@ -3,6 +3,7 @@ from mcp.server.fastmcp import FastMCP
 from kf.api import KnowledgeSession
 from kf.api import ask_question as _ask_question
 from kf.api import get_stats as _get_stats
+from kf.api import graph_search as _graph_search
 from kf.api import open_session
 from kf.api import semantic_search as _semantic_search
 
@@ -34,6 +35,12 @@ def ask(question: str, limit: int = 5) -> dict:
 def stats() -> dict:
     """Сколько документов и чанков сейчас проиндексировано в базе знаний."""
     return _get_stats(_get_session())
+
+
+@mcp.tool()
+def graph_search(entity: str) -> list[dict]:
+    """Найти прямые связи сущности в графе знаний (люди, инструменты, проекты, темы, концепты)."""
+    return _graph_search(_get_session(), entity)
 
 
 def main() -> None:
