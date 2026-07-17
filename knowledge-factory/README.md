@@ -54,9 +54,15 @@ uv run python kf.py stats                    # сколько документо
 включая изменения, сделанные вручную в Obsidian. Удалённые файлы только логируются —
 их векторы/записи в Qdrant/Postgres/MinIO не удаляются автоматически.
 
+`kf.py ingest` также извлекает сущности (люди, инструменты, проекты, темы, концепты) и
+связи между ними в граф знаний (Kuzu, `data/graph/`, без Docker). Посмотреть прямые связи
+конкретной сущности: `uv run python kf.py graph "название сущности"`, или через MCP
+(`graph_search`). Сбой извлечения не прерывает `ingest` — только логируется.
+
 ## Knowledge MCP
 
-`kf/mcp_server.py` (FastMCP) поверх `kf/api.py` — инструменты `semantic_search`, `ask`, `stats`.
+`kf/mcp_server.py` (FastMCP) поверх `kf/api.py` — инструменты `semantic_search`, `ask`,
+`stats`, `graph_search`.
 
 ```
 claude mcp add knowledge-factory -s user -e PYTHONPATH="E:\Digital brain\knowledge-factory" -- "E:\Digital brain\knowledge-factory\.venv\Scripts\python.exe" -m kf.mcp_server
