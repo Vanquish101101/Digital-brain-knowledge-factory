@@ -22,6 +22,7 @@ def _build_ingest_deps(settings) -> IngestDeps:
         embedder=session.embedder,
         collection=COLLECTION,
         settings=settings,
+        graph_conn=session.graph_conn,
     )
 
 

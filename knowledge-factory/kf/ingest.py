@@ -7,9 +7,11 @@ from kf.chunking import chunk_text
 from kf.config import Settings
 from kf.embeddings import embed
 from kf.extract import extract_text
+from kf.graph import extract_entities_and_relationships
 from kf.hashing import sha256_of_file
 from kf.journal import append_entries, detect_deleted, extract_description, format_entry
 from kf.scope import should_index
+from kf.store.graph_store import add_relationship, upsert_entity
 from kf.store.minio_store import upload_file
 from kf.store.postgres import list_paths, needs_ingest, path_known, record_ingested
 from kf.store.qdrant_store import upsert_chunks
@@ -28,6 +30,7 @@ class IngestDeps:
     settings: Settings
     max_chars: int = 1500
     overlap: int = 150
+    graph_conn: object = None
 
 
 @dataclass
@@ -41,6 +44,8 @@ class IngestStats:
     notes_failed: int = 0
     journal_entries_written: int = 0
     deleted_detected: int = 0
+    entities_extracted: int = 0
+    entities_failed: int = 0
 
 
 def _point_id(path: str, chunk_index: int) -> str:
@@ -90,6 +95,25 @@ def _synthesize_and_index_note(
     return note_text
 
 
+def _extract_and_store_entities(text: str, rel_key: str, deps: IngestDeps, stats: IngestStats) -> None:
+    if deps.graph_conn is None:
+        return
+    try:
+        entities, relationships = extract_entities_and_relationships(deps.settings, text, rel_key)
+    except Exception as exc:
+        print(f"[ingest] извлечение сущностей не удалось для {rel_key}: {exc}")
+        stats.entities_failed += 1
+        return
+
+    for entity in entities:
+        upsert_entity(deps.graph_conn, entity["name"], entity["type"])
+    for rel in relationships:
+        add_relationship(
+            deps.graph_conn, rel["from"], rel["to"], rel["category"], rel["description"], rel_key
+        )
+    stats.entities_extracted += len(entities)
+
+
 def ingest_directory(source_dir: Path, deps: IngestDeps, detect_deletions: bool = True) -> IngestStats:
     stats = IngestStats()
     notes_dir = Path(deps.settings.synthesis_notes_dir).resolve()
@@ -126,6 +150,7 @@ def ingest_directory(source_dir: Path, deps: IngestDeps, detect_deletions: bool 
         note_text = None
         if not is_note:
             note_text = _synthesize_and_index_note(text, rel_key, deps, stats)
+            _extract_and_store_entities(text, rel_key, deps, stats)
 
         section = rel_key.split("/", 1)[0]
         description = extract_description(note_text) if note_text else ""

@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from kf.config import Settings, load_settings
 from kf.embeddings import embed, get_embedder
 from kf.llm import build_prompt, call_llm
+from kf.store.graph_store import ensure_schema as ensure_graph_schema
+from kf.store.graph_store import get_connection as get_graph_connection
 from kf.store.postgres import connect, ensure_schema
 from kf.store.qdrant_store import ensure_collection
 from kf.store.qdrant_store import get_client as get_qdrant_client
@@ -18,6 +20,7 @@ class KnowledgeSession:
     pg_conn: object
     qdrant_client: object
     embedder: object
+    graph_conn: object
 
 
 def open_session() -> KnowledgeSession:
@@ -31,11 +34,15 @@ def open_session() -> KnowledgeSession:
 
     embedder = get_embedder(settings)
 
+    graph_conn = get_graph_connection(settings)
+    ensure_graph_schema(graph_conn)
+
     return KnowledgeSession(
         settings=settings,
         pg_conn=pg_conn,
         qdrant_client=qdrant_client,
         embedder=embedder,
+        graph_conn=graph_conn,
     )
 
 

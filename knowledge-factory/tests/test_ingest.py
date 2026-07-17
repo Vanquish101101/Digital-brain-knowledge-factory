@@ -242,3 +242,57 @@ def test_detect_deletions_false_skips_deletion_check(tmp_path, deps):
     stats = ingest_directory(tmp_path, deps, detect_deletions=False)
 
     assert stats.deleted_detected == 0
+
+
+def test_ingest_skips_entity_extraction_when_graph_conn_is_none(tmp_path, deps):
+    (tmp_path / "note1.md").write_text("Заметка.", encoding="utf-8")
+
+    stats = ingest_directory(tmp_path, deps)
+
+    assert stats.entities_extracted == 0
+    assert stats.entities_failed == 0
+
+
+def test_ingest_extracts_entities_when_graph_conn_provided(tmp_path, deps, monkeypatch):
+    from kf.store.graph_store import ensure_schema, get_connection, query_entity
+
+    graph_settings = deps.settings
+    graph_settings.data_root = str(tmp_path.parent / "graph-data-extract")
+    deps.graph_conn = get_connection(graph_settings)
+    ensure_schema(deps.graph_conn)
+
+    monkeypatch.setattr(
+        "kf.ingest.extract_entities_and_relationships",
+        lambda settings, text, source_path: (
+            [{"name": "Blender", "type": "инструмент"}, {"name": "Проект X", "type": "проект"}],
+            [{"from": "Blender", "to": "Проект X", "category": "использует", "description": "рендеринг"}],
+        ),
+    )
+    (tmp_path / "note1.md").write_text("Заметка про Blender и Проект X.", encoding="utf-8")
+
+    stats = ingest_directory(tmp_path, deps)
+
+    assert stats.entities_extracted == 2
+    results = query_entity(deps.graph_conn, "Blender")
+    assert len(results) == 1
+    assert results[0]["entity"] == "Проект X"
+
+
+def test_entity_extraction_failure_does_not_abort_ingest(tmp_path, deps, monkeypatch):
+    from kf.store.graph_store import ensure_schema, get_connection
+
+    graph_settings = deps.settings
+    graph_settings.data_root = str(tmp_path.parent / "graph-data-failure")
+    deps.graph_conn = get_connection(graph_settings)
+    ensure_schema(deps.graph_conn)
+
+    def _boom(settings, text, source_path):
+        raise RuntimeError("OpenRouter недоступен")
+
+    monkeypatch.setattr("kf.ingest.extract_entities_and_relationships", _boom)
+    (tmp_path / "note1.md").write_text("Заметка.", encoding="utf-8")
+
+    stats = ingest_directory(tmp_path, deps)
+
+    assert stats.files_ingested == 2
+    assert stats.entities_failed == 1
