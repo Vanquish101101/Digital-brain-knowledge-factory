@@ -46,3 +46,38 @@ def test_ingest_reports_summary(tmp_path, monkeypatch):
         cur.execute("DELETE FROM documents WHERE path LIKE '%cli-note%'")
     conn.commit()
     conn.close()
+
+
+def test_ingest_passes_detect_deletions_false_for_custom_source(tmp_path, monkeypatch):
+    from kf.ingest import IngestStats
+
+    captured = {}
+
+    def _fake_ingest_directory(source_dir, deps, detect_deletions=True):
+        captured["detect_deletions"] = detect_deletions
+        return IngestStats()
+
+    monkeypatch.setattr("kf.cli.ingest_directory", _fake_ingest_directory)
+
+    runner = CliRunner()
+    runner.invoke(cli, ["ingest", "--source", str(tmp_path)])
+
+    assert captured["detect_deletions"] is False
+
+
+def test_ingest_passes_detect_deletions_true_for_default_source(monkeypatch):
+    from kf.ingest import IngestStats
+
+    captured = {}
+
+    def _fake_ingest_directory(source_dir, deps, detect_deletions=True):
+        captured["detect_deletions"] = detect_deletions
+        return IngestStats()
+
+    monkeypatch.setattr("kf.cli.ingest_directory", _fake_ingest_directory)
+    monkeypatch.setattr("kf.cli._build_ingest_deps", lambda settings: None)
+
+    runner = CliRunner()
+    runner.invoke(cli, ["ingest"])
+
+    assert captured["detect_deletions"] is True

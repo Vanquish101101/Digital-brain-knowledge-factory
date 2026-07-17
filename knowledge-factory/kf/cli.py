@@ -43,7 +43,7 @@ def ingest(source: Path | None):
     deps = _build_ingest_deps(settings)
     src = source or DEFAULT_SOURCE
     click.echo(f"Индексирую: {src}")
-    stats = ingest_directory(src, deps)
+    stats = ingest_directory(src, deps, detect_deletions=(source is None))
     click.echo(
         f"Готово. просканировано: {stats.files_scanned}, "
         f"проиндексировано: {stats.files_ingested}, "

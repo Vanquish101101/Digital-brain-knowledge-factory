@@ -208,3 +208,37 @@ def test_journal_entry_uses_synthesis_note_first_line_as_description(tmp_path, d
     journal_path = tmp_path.parent / "Журнал знаний.md"
     content = journal_path.read_text(encoding="utf-8")
     assert "Заметка о рецепте борща." in content
+
+
+def test_deletion_check_failure_does_not_abort_ingest(tmp_path, deps, monkeypatch):
+    (tmp_path / "note1.md").write_text("Заметка.", encoding="utf-8")
+
+    def _boom(conn, exclude_prefix=""):
+        raise RuntimeError("Postgres недоступен")
+
+    monkeypatch.setattr("kf.ingest.list_paths", _boom)
+
+    stats = ingest_directory(tmp_path, deps)
+
+    assert stats.files_ingested == 2
+
+
+def test_journal_write_failure_does_not_abort_ingest(tmp_path, deps, monkeypatch):
+    (tmp_path / "note1.md").write_text("Заметка.", encoding="utf-8")
+
+    def _boom(entries, path):
+        raise OSError("файл занят другим процессом")
+
+    monkeypatch.setattr("kf.ingest.append_entries", _boom)
+
+    stats = ingest_directory(tmp_path, deps)
+
+    assert stats.files_ingested == 2
+
+
+def test_detect_deletions_false_skips_deletion_check(tmp_path, deps):
+    (tmp_path / "note1.md").write_text("Заметка.", encoding="utf-8")
+
+    stats = ingest_directory(tmp_path, deps, detect_deletions=False)
+
+    assert stats.deleted_detected == 0

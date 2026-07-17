@@ -90,7 +90,7 @@ def _synthesize_and_index_note(
     return note_text
 
 
-def ingest_directory(source_dir: Path, deps: IngestDeps) -> IngestStats:
+def ingest_directory(source_dir: Path, deps: IngestDeps, detect_deletions: bool = True) -> IngestStats:
     stats = IngestStats()
     notes_dir = Path(deps.settings.synthesis_notes_dir).resolve()
     journal_entries: list[str] = []
@@ -132,15 +132,22 @@ def ingest_directory(source_dir: Path, deps: IngestDeps) -> IngestStats:
         action = "добавлено" if is_new else "изменено"
         journal_entries.append(format_entry(action, rel_key, section, description, today))
 
-    notes_prefix = f"{notes_dir.name}/"
-    known_paths = list_paths(deps.pg_conn, exclude_prefix=notes_prefix)
-    deleted = detect_deleted(known_paths, seen_paths)
-    for deleted_path in sorted(deleted):
-        section = deleted_path.split("/", 1)[0]
-        journal_entries.append(format_entry("удалено", deleted_path, section, "", today))
-    stats.deleted_detected = len(deleted)
-    stats.journal_entries_written = len(journal_entries)
+    if detect_deletions:
+        notes_prefix = f"{notes_dir.name}/"
+        try:
+            known_paths = list_paths(deps.pg_conn, exclude_prefix=notes_prefix)
+            deleted = detect_deleted(known_paths, seen_paths)
+            for deleted_path in sorted(deleted):
+                section = deleted_path.split("/", 1)[0]
+                journal_entries.append(format_entry("удалено", deleted_path, section, "", today))
+            stats.deleted_detected = len(deleted)
+        except Exception as exc:
+            print(f"[ingest] проверка удалённых файлов не удалась: {exc}")
 
-    append_entries(journal_entries, source_dir.parent / "Журнал знаний.md")
+    stats.journal_entries_written = len(journal_entries)
+    try:
+        append_entries(journal_entries, source_dir.parent / "Журнал знаний.md")
+    except Exception as exc:
+        print(f"[ingest] запись в Журнал знаний.md не удалась: {exc}")
 
     return stats
