@@ -22,6 +22,10 @@ def test_ingest_reports_summary(tmp_path, monkeypatch):
         "kf.ingest.synthesize_note",
         lambda settings, text, source_path: f"Заметка про {source_path}",
     )
+    monkeypatch.setattr(
+        "kf.ingest.extract_entities_and_relationships",
+        lambda settings, text, source_path: ([], []),
+    )
 
     # Clean up any leftover data from previous runs before testing
     settings = load_settings()

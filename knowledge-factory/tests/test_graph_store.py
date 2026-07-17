@@ -1,7 +1,15 @@
 import pytest
 
 from kf.config import Settings
-from kf.store.graph_store import add_relationship, ensure_schema, get_connection, normalize_entity_name, query_entity, upsert_entity
+from kf.store.graph_store import (
+    add_relationship,
+    delete_relationships_by_source,
+    ensure_schema,
+    get_connection,
+    normalize_entity_name,
+    query_entity,
+    upsert_entity,
+)
 
 
 def _dummy_settings(tmp_path, **overrides) -> Settings:
@@ -73,3 +81,17 @@ def test_query_entity_finds_relationship_from_target_side_too(conn):
 
     assert len(results) == 1
     assert results[0]["entity"] == "Иван"
+
+
+def test_delete_relationships_by_source_removes_only_matching_edges(conn):
+    upsert_entity(conn, "A", "концепт")
+    upsert_entity(conn, "B", "концепт")
+    upsert_entity(conn, "C", "концепт")
+    add_relationship(conn, "A", "B", "другое", "desc1", "file1.md")
+    add_relationship(conn, "A", "C", "другое", "desc2", "file2.md")
+
+    delete_relationships_by_source(conn, "file1.md")
+
+    results_a = query_entity(conn, "A")
+    assert len(results_a) == 1
+    assert results_a[0]["entity"] == "C"

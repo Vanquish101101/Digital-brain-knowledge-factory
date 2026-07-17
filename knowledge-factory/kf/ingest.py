@@ -11,7 +11,7 @@ from kf.graph import extract_entities_and_relationships
 from kf.hashing import sha256_of_file
 from kf.journal import append_entries, detect_deleted, extract_description, format_entry
 from kf.scope import should_index
-from kf.store.graph_store import add_relationship, upsert_entity
+from kf.store.graph_store import add_relationship, delete_relationships_by_source, upsert_entity
 from kf.store.minio_store import upload_file
 from kf.store.postgres import list_paths, needs_ingest, path_known, record_ingested
 from kf.store.qdrant_store import upsert_chunks
@@ -105,6 +105,7 @@ def _extract_and_store_entities(text: str, rel_key: str, deps: IngestDeps, stats
         stats.entities_failed += 1
         return
 
+    delete_relationships_by_source(deps.graph_conn, rel_key)
     for entity in entities:
         upsert_entity(deps.graph_conn, entity["name"], entity["type"])
     for rel in relationships:

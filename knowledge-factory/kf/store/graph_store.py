@@ -62,6 +62,13 @@ def add_relationship(
     )
 
 
+def delete_relationships_by_source(conn: kuzu.Connection, source_path: str) -> None:
+    conn.execute(
+        "MATCH ()-[r:RELATED_TO]->() WHERE r.source_path = $source_path DELETE r",
+        parameters={"source_path": source_path},
+    )
+
+
 def query_entity(conn: kuzu.Connection, name: str) -> list[dict]:
     normalized = normalize_entity_name(name)
     result = conn.execute(

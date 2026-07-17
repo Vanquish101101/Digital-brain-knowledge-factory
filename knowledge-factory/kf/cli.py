@@ -5,6 +5,8 @@ import click
 from kf.api import COLLECTION, VECTOR_SIZE, ask_question, get_stats, graph_search, open_session, semantic_search
 from kf.config import load_settings
 from kf.ingest import IngestDeps, ingest_directory
+from kf.store.graph_store import ensure_schema as ensure_graph_schema
+from kf.store.graph_store import get_connection as get_graph_connection
 from kf.store.minio_store import ensure_bucket
 from kf.store.minio_store import get_client as get_minio_client
 
@@ -15,6 +17,8 @@ def _build_ingest_deps(settings) -> IngestDeps:
     session = open_session()
     minio_client = get_minio_client(settings)
     ensure_bucket(minio_client)
+    graph_conn = get_graph_connection(settings)
+    ensure_graph_schema(graph_conn)
     return IngestDeps(
         pg_conn=session.pg_conn,
         qdrant_client=session.qdrant_client,
@@ -22,7 +26,7 @@ def _build_ingest_deps(settings) -> IngestDeps:
         embedder=session.embedder,
         collection=COLLECTION,
         settings=settings,
-        graph_conn=session.graph_conn,
+        graph_conn=graph_conn,
     )
 
 

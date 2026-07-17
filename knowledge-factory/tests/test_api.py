@@ -89,3 +89,27 @@ def test_graph_search_returns_empty_for_unknown_entity(tmp_path):
     results = graph_search(session, "Несуществующая сущность")
 
     assert results == []
+
+
+def test_open_session_does_not_eagerly_open_graph_connection():
+    session = open_session()
+
+    assert session.graph_conn is None
+
+
+def test_graph_search_opens_and_releases_its_own_connection_when_session_has_none(tmp_path):
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    session = KnowledgeSession(
+        settings=settings, pg_conn=None, qdrant_client=None, embedder=None, graph_conn=None
+    )
+
+    results = graph_search(session, "Несуществующая сущность")
+
+    assert results == []
+    # A second, independent connection to the same path must succeed — proves the first
+    # connection graph_search opened internally was actually released, not leaked.
+    from kf.store.graph_store import ensure_schema, get_connection
+
+    second_conn = get_connection(settings)
+    ensure_schema(second_conn)

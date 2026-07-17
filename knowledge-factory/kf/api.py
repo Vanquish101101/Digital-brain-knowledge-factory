@@ -35,15 +35,12 @@ def open_session() -> KnowledgeSession:
 
     embedder = get_embedder(settings)
 
-    graph_conn = get_graph_connection(settings)
-    ensure_graph_schema(graph_conn)
-
     return KnowledgeSession(
         settings=settings,
         pg_conn=pg_conn,
         qdrant_client=qdrant_client,
         embedder=embedder,
-        graph_conn=graph_conn,
+        graph_conn=None,
     )
 
 
@@ -83,4 +80,13 @@ def get_stats(session: KnowledgeSession) -> dict:
 
 
 def graph_search(session: KnowledgeSession, entity: str) -> list[dict]:
-    return query_entity(session.graph_conn, entity)
+    graph_conn = session.graph_conn
+    owns_connection = graph_conn is None
+    if owns_connection:
+        graph_conn = get_graph_connection(session.settings)
+        ensure_graph_schema(graph_conn)
+    try:
+        return query_entity(graph_conn, entity)
+    finally:
+        if owns_connection:
+            del graph_conn

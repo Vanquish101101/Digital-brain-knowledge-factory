@@ -278,6 +278,32 @@ def test_ingest_extracts_entities_when_graph_conn_provided(tmp_path, deps, monke
     assert results[0]["entity"] == "Проект X"
 
 
+def test_reingest_replaces_relationships_instead_of_duplicating(tmp_path, deps, monkeypatch):
+    from kf.store.graph_store import ensure_schema, get_connection, query_entity
+
+    graph_settings = deps.settings
+    graph_settings.data_root = str(tmp_path.parent / "graph-data-reingest")
+    deps.graph_conn = get_connection(graph_settings)
+    ensure_schema(deps.graph_conn)
+
+    monkeypatch.setattr(
+        "kf.ingest.extract_entities_and_relationships",
+        lambda settings, text, source_path: (
+            [{"name": "Blender", "type": "инструмент"}, {"name": "Проект X", "type": "проект"}],
+            [{"from": "Blender", "to": "Проект X", "category": "использует", "description": "рендеринг"}],
+        ),
+    )
+    f = tmp_path / "note1.md"
+    f.write_text("Первая версия.", encoding="utf-8")
+    ingest_directory(tmp_path, deps)
+
+    f.write_text("Изменённая версия.", encoding="utf-8")
+    ingest_directory(tmp_path, deps)
+
+    results = query_entity(deps.graph_conn, "Blender")
+    assert len(results) == 1
+
+
 def test_entity_extraction_failure_does_not_abort_ingest(tmp_path, deps, monkeypatch):
     from kf.store.graph_store import ensure_schema, get_connection
 
