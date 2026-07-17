@@ -50,3 +50,42 @@ def test_get_stats_returns_document_and_chunk_counts():
     assert "chunks" in stats
     assert stats["documents"] >= 0
     assert stats["chunks"] >= 0
+
+
+from kf.api import KnowledgeSession, graph_search
+from kf.config import load_settings
+from kf.store.graph_store import add_relationship, ensure_schema, get_connection, upsert_entity
+
+
+def test_graph_search_finds_direct_relationship(tmp_path):
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    graph_conn = get_connection(settings)
+    ensure_schema(graph_conn)
+    upsert_entity(graph_conn, "Blender", "инструмент")
+    upsert_entity(graph_conn, "Проект X", "проект")
+    add_relationship(graph_conn, "Blender", "Проект X", "использует", "тестовая связь", "test.md")
+
+    session = KnowledgeSession(
+        settings=settings, pg_conn=None, qdrant_client=None, embedder=None, graph_conn=graph_conn
+    )
+
+    results = graph_search(session, "Blender")
+
+    assert len(results) == 1
+    assert results[0]["entity"] == "Проект X"
+
+
+def test_graph_search_returns_empty_for_unknown_entity(tmp_path):
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    graph_conn = get_connection(settings)
+    ensure_schema(graph_conn)
+
+    session = KnowledgeSession(
+        settings=settings, pg_conn=None, qdrant_client=None, embedder=None, graph_conn=graph_conn
+    )
+
+    results = graph_search(session, "Несуществующая сущность")
+
+    assert results == []

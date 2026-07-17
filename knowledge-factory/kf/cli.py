@@ -2,7 +2,7 @@ from pathlib import Path
 
 import click
 
-from kf.api import COLLECTION, VECTOR_SIZE, ask_question, get_stats, open_session, semantic_search
+from kf.api import COLLECTION, VECTOR_SIZE, ask_question, get_stats, graph_search, open_session, semantic_search
 from kf.config import load_settings
 from kf.ingest import IngestDeps, ingest_directory
 from kf.store.minio_store import ensure_bucket
@@ -75,6 +75,19 @@ def search(query: str, limit: int):
     for r in results:
         click.echo(f"[{r['score']:.3f}] {r['path']} (чанк {r['chunk_index']})")
         click.echo(f"  {r['text'][:200]}")
+
+
+@cli.command()
+@click.argument("entity")
+def graph(entity: str):
+    """Показать все прямые связи сущности в графе знаний."""
+    session = open_session()
+    results = graph_search(session, entity)
+    if not results:
+        click.echo(f"Сущность «{entity}» не найдена в графе знаний.")
+        return
+    for r in results:
+        click.echo(f"[{r['category']}] {r['entity']} — {r['description']} (из: {r['source_path']})")
 
 
 @cli.command()

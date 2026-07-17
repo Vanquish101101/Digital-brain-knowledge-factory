@@ -5,6 +5,7 @@ from kf.embeddings import embed, get_embedder
 from kf.llm import build_prompt, call_llm
 from kf.store.graph_store import ensure_schema as ensure_graph_schema
 from kf.store.graph_store import get_connection as get_graph_connection
+from kf.store.graph_store import query_entity
 from kf.store.postgres import connect, ensure_schema
 from kf.store.qdrant_store import ensure_collection
 from kf.store.qdrant_store import get_client as get_qdrant_client
@@ -79,3 +80,7 @@ def get_stats(session: KnowledgeSession) -> dict:
         chunk_count = 0
 
     return {"documents": doc_count, "chunks": chunk_count}
+
+
+def graph_search(session: KnowledgeSession, entity: str) -> list[dict]:
+    return query_entity(session.graph_conn, entity)

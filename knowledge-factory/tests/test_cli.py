@@ -81,3 +81,49 @@ def test_ingest_passes_detect_deletions_true_for_default_source(monkeypatch):
     runner.invoke(cli, ["ingest"])
 
     assert captured["detect_deletions"] is True
+
+
+def test_graph_command_reports_relationship(tmp_path, monkeypatch):
+    from kf.api import KnowledgeSession
+    from kf.store.graph_store import add_relationship, ensure_schema, get_connection, upsert_entity
+
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    graph_conn = get_connection(settings)
+    ensure_schema(graph_conn)
+    upsert_entity(graph_conn, "Blender", "инструмент")
+    upsert_entity(graph_conn, "Проект X", "проект")
+    add_relationship(graph_conn, "Blender", "Проект X", "использует", "рендеринг сцен", "note.md")
+
+    fake_session = KnowledgeSession(
+        settings=settings, pg_conn=None, qdrant_client=None, embedder=None, graph_conn=graph_conn
+    )
+    monkeypatch.setattr("kf.cli.open_session", lambda: fake_session)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["graph", "Blender"])
+
+    assert result.exit_code == 0
+    assert "Проект X" in result.output
+    assert "использует" in result.output
+
+
+def test_graph_command_reports_not_found_for_unknown_entity(tmp_path, monkeypatch):
+    from kf.api import KnowledgeSession
+    from kf.store.graph_store import ensure_schema, get_connection
+
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    graph_conn = get_connection(settings)
+    ensure_schema(graph_conn)
+
+    fake_session = KnowledgeSession(
+        settings=settings, pg_conn=None, qdrant_client=None, embedder=None, graph_conn=graph_conn
+    )
+    monkeypatch.setattr("kf.cli.open_session", lambda: fake_session)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["graph", "Несуществующая сущность"])
+
+    assert result.exit_code == 0
+    assert "не найдена" in result.output
