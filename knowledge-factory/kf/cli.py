@@ -102,7 +102,7 @@ def ingest_url(url: str, dest: str):
         )
 
     deps = _build_ingest_deps(settings)
-    stats = ingest_directory(dest_dir, deps, detect_deletions=False)
+    stats = ingest_directory(DEFAULT_SOURCE, deps, detect_deletions=False)
     click.echo(f"Готово. проиндексировано: {stats.files_ingested}, чанков записано: {stats.chunks_written}")
 
 

@@ -288,6 +288,7 @@ def test_ingest_url_saves_file_and_reports_path(tmp_path, monkeypatch):
     assert saved_file.read_text(encoding="utf-8") == "Текст статьи про Docker."
     assert "003 Знания" in result.output
     assert captured["detect_deletions"] is False
+    assert captured["source_dir"] == tmp_path
 
 
 def test_ingest_url_warns_on_low_quality_extraction(tmp_path, monkeypatch):
