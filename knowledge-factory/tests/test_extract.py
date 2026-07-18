@@ -243,3 +243,22 @@ def test_audio_extraction_supports_all_expected_extensions(tmp_path, monkeypatch
         f.write_bytes(b"fakeaudio")
 
         assert extract_text(f, _dummy_settings()) == "текст"
+
+
+def test_extracts_xlsx_cells(tmp_path):
+    import openpyxl
+
+    f = tmp_path / "таблица.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Бюджет"
+    sheet.append(["Статья", "Сумма"])
+    sheet.append(["Реклама", 5000])
+    workbook.save(f)
+
+    text = extract_text(f, _dummy_settings())
+
+    assert "Бюджет" in text
+    assert "Статья" in text
+    assert "Реклама" in text
+    assert "5000" in text

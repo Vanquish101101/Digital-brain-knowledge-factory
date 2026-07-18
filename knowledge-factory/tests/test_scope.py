@@ -54,3 +54,10 @@ def test_includes_audio_extensions(tmp_path):
         f.write_bytes(b"x")
 
         assert should_index(f) is True
+
+
+def test_includes_xlsx_extension(tmp_path):
+    f = tmp_path / "таблица.xlsx"
+    f.write_bytes(b"x")
+
+    assert should_index(f) is True

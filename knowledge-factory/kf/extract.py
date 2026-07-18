@@ -1,6 +1,7 @@
 import shutil
 from pathlib import Path
 
+import openpyxl
 from docx import Document
 from pypdf import PdfReader
 
@@ -19,6 +20,18 @@ AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".m4a"}
 def _extract_docx(path: Path) -> str:
     doc = Document(str(path))
     return "\n\n".join(p.text for p in doc.paragraphs if p.text)
+
+
+def _extract_xlsx(path: Path) -> str:
+    workbook = openpyxl.load_workbook(path, data_only=True)
+    parts = []
+    for sheet in workbook.worksheets:
+        parts.append(f"[Лист: {sheet.title}]")
+        for row in sheet.iter_rows(values_only=True):
+            cells = [str(cell) for cell in row if cell is not None]
+            if cells:
+                parts.append(" | ".join(cells))
+    return "\n".join(parts)
 
 
 def _extract_pdf(path: Path) -> str:
@@ -88,4 +101,6 @@ def extract_text(path: Path, settings: Settings) -> str:
         return _extract_video(path, settings)
     if suffix in AUDIO_EXTENSIONS:
         return _extract_audio_file(path, settings)
+    if suffix == ".xlsx":
+        return _extract_xlsx(path)
     raise ValueError(f"Unsupported file type: {suffix}")
