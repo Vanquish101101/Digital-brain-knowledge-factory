@@ -1,3 +1,5 @@
+import uuid
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, FieldCondition, Filter, MatchValue, PointStruct, VectorParams
 
@@ -36,3 +38,30 @@ def search(client: QdrantClient, collection: str, query_vector: list[float], lim
         limit=limit,
     ).points
     return [{"id": r.id, "score": r.score, "payload": r.payload} for r in results]
+
+
+_NAMESPACE = uuid.UUID("12345678-1234-5678-1234-567812345678")
+
+
+def point_id(path: str, chunk_index: int) -> str:
+    return str(uuid.uuid5(_NAMESPACE, f"{path}:{chunk_index}"))
+
+
+def list_paths(client: QdrantClient, collection: str) -> set[str]:
+    if not client.collection_exists(collection):
+        return set()
+
+    paths: set[str] = set()
+    offset = None
+    while True:
+        points, offset = client.scroll(
+            collection_name=collection,
+            limit=256,
+            with_payload=["path"],
+            with_vectors=False,
+            offset=offset,
+        )
+        paths.update(p.payload["path"] for p in points)
+        if offset is None:
+            break
+    return paths

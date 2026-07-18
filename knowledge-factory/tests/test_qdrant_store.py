@@ -103,3 +103,39 @@ def test_delete_by_path_removes_only_matching_points(client, embedder):
 
     remaining = [r["payload"]["path"] for r in search(client, COLLECTION, vector, limit=10)]
     assert remaining == ["test://keep.md"]
+
+
+from kf.store.qdrant_store import list_paths, point_id
+
+
+def test_list_paths_returns_empty_set_for_missing_collection(client):
+    assert list_paths(client, "коллекция_которой_нет") == set()
+
+
+def test_list_paths_returns_unique_paths(client, embedder):
+    vector = embed(embedder, ["текст"])[0]
+    upsert_chunks(
+        client,
+        COLLECTION,
+        [
+            {"id": str(uuid.uuid4()), "vector": vector, "payload": {"path": "a.md", "chunk_index": 0, "text": "x"}},
+            {"id": str(uuid.uuid4()), "vector": vector, "payload": {"path": "a.md", "chunk_index": 1, "text": "y"}},
+            {"id": str(uuid.uuid4()), "vector": vector, "payload": {"path": "b.md", "chunk_index": 0, "text": "z"}},
+        ],
+    )
+
+    paths = list_paths(client, COLLECTION)
+
+    assert paths == {"a.md", "b.md"}
+
+
+def test_point_id_is_deterministic_for_same_path_and_chunk():
+    assert point_id("a.md", 0) == point_id("a.md", 0)
+
+
+def test_point_id_differs_for_different_chunk_index():
+    assert point_id("a.md", 0) != point_id("a.md", 1)
+
+
+def test_point_id_differs_for_different_path():
+    assert point_id("a.md", 0) != point_id("b.md", 0)
