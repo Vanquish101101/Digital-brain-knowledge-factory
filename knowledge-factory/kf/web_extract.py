@@ -14,6 +14,13 @@ from kf.transcribe import transcribe_audio
 
 LOW_QUALITY_THRESHOLD_CHARS = 200
 
+_BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    )
+}
+
 
 def is_youtube_url(url: str) -> bool:
     host = urlparse(url).netloc.lower()
@@ -31,7 +38,7 @@ def derive_filename(title: str | None) -> str:
 
 
 def extract_article(url: str) -> tuple[str, str | None]:
-    response = httpx.get(url, timeout=30, follow_redirects=True)
+    response = httpx.get(url, timeout=30, follow_redirects=True, headers=_BROWSER_HEADERS)
     response.raise_for_status()
     downloaded = response.text
     text = trafilatura.extract(downloaded) or ""
