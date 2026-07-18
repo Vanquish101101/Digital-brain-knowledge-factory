@@ -40,6 +40,9 @@ uv run python kf.py ingest [--source PATH]   # индексация (по умо
 uv run python kf.py search "запрос"          # семантический поиск фрагментов
 uv run python kf.py ask "вопрос"             # поиск + связный ответ через OpenRouter, со ссылками
 uv run python kf.py stats                    # сколько документов/чанков в базе
+uv run python kf.py embedding-model list     # профили моделей эмбеддинга и их покрытие
+uv run python kf.py embedding-model use <n>  # переключить активную модель (без переиндексации)
+uv run python kf.py embedding-model sync     # досчитать недостающие эмбеддинги для активной модели
 ```
 
 Исключено из индексации: `Закладки браузера — структура.md` (низкая ценность для поиска,
@@ -79,6 +82,19 @@ uv run pytest
 
 74 тест: часть — чистые юнит-тесты (scope/chunking/hashing/extract/llm), часть — интеграционные
 против живого стека (Postgres/Qdrant/MinIO/MCP-протокол), без моков.
+
+## Переключаемые модели эмбеддинга
+
+Доступны четыре профиля (`knowledge-factory/kf/embedding_models.py`): `local` (текущая
+локальная MiniLM, без сети), `qwen3-8b`, `openai-small`, `openai-large` (через OpenRouter,
+используют уже настроенный `OPENROUTER_API_KEY`). У каждого профиля своя коллекция в Qdrant —
+переключение на уже использовавшийся профиль мгновенное и бесплатное.
+
+`kf.py embedding-model use <имя>` только переключает активный профиль (файл состояния
+`data/active_embedding_model.txt`) и предупреждает, если у выбранной модели не хватает
+файлов. `kf.py embedding-model sync` — единственная команда, которая тратит API-бюджет (если
+активная модель не `local`): досчитывает эмбеддинги только для отсутствующих файлов, не
+трогая LLM-синтез заметок и граф знаний.
 
 ## Разработка (uv)
 
