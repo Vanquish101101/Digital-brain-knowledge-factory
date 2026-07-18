@@ -2,7 +2,38 @@ from click.testing import CliRunner
 
 from kf.cli import cli
 from kf.config import load_settings
+from kf.embedding_models import EMBEDDING_PROFILES
+from kf.store import minio_store, qdrant_store
 from kf.store.postgres import connect
+
+# Paths that test_ingest_reports_summary writes for a source dir containing
+# only "cli-note.md" (see kf/ingest.py: rel_key is the path relative to
+# --source, and the synthesized note is stored at
+# f"{Path(SYNTHESIS_NOTES_DIR).name}/{rel_key}.md"; the test sets
+# SYNTHESIS_NOTES_DIR to a "notes" subdir, so notes_dir.name == "notes").
+_CLI_NOTE_PATHS = ("cli-note.md", "notes/cli-note.md.md")
+
+
+def _purge_cli_note_pollution(settings) -> None:
+    """Remove any Qdrant points / MinIO objects left behind by this test.
+
+    Postgres cleanup (DELETE FROM documents) never removed the corresponding
+    vectors/objects from the production Qdrant collection or MinIO bucket,
+    so this test was silently leaking test data into production storage on
+    every run. This purges both stores for the exact paths this test writes.
+    """
+    collection = EMBEDDING_PROFILES["local"].collection
+
+    qdrant_client = qdrant_store.get_client(settings)
+    for path in _CLI_NOTE_PATHS:
+        qdrant_store.delete_by_path(qdrant_client, collection, path)
+
+    minio_client = minio_store.get_client(settings)
+    for path in _CLI_NOTE_PATHS:
+        try:
+            minio_client.remove_object(minio_store.BUCKET, path)
+        except Exception:
+            pass  # object may not exist yet — cleanup is best-effort
 
 
 def test_stats_reports_document_and_chunk_counts():
@@ -34,6 +65,7 @@ def test_ingest_reports_summary(tmp_path, monkeypatch):
         cur.execute("DELETE FROM documents WHERE path LIKE '%cli-note%'")
     conn.commit()
     conn.close()
+    _purge_cli_note_pollution(settings)
 
     runner = CliRunner()
 
@@ -50,6 +82,7 @@ def test_ingest_reports_summary(tmp_path, monkeypatch):
         cur.execute("DELETE FROM documents WHERE path LIKE '%cli-note%'")
     conn.commit()
     conn.close()
+    _purge_cli_note_pollution(settings)
 
 
 def test_ingest_passes_detect_deletions_false_for_custom_source(tmp_path, monkeypatch):
