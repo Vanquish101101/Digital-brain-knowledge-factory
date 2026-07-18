@@ -252,3 +252,62 @@ def test_embedding_model_sync_calls_sync_missing_paths(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert seen["missing"] == {"b.md"}
     assert "синхронизировано: 1" in result.output
+
+
+def test_ingest_url_saves_file_and_reports_path(tmp_path, monkeypatch):
+    settings = load_settings()
+    monkeypatch.setattr("kf.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("kf.cli.DEFAULT_SOURCE", tmp_path)
+    monkeypatch.setattr(
+        "kf.cli.extract_from_url",
+        lambda url, settings: ("Текст статьи про Docker.", "Статья про Docker", False),
+    )
+
+    captured = {}
+
+    def _fake_build_deps(settings):
+        captured["called"] = True
+        return object()
+
+    def _fake_ingest_directory(source_dir, deps, detect_deletions=True):
+        from kf.ingest import IngestStats
+
+        captured["source_dir"] = source_dir
+        captured["detect_deletions"] = detect_deletions
+        return IngestStats(files_scanned=1, files_ingested=1, chunks_written=2)
+
+    monkeypatch.setattr("kf.cli._build_ingest_deps", _fake_build_deps)
+    monkeypatch.setattr("kf.cli.ingest_directory", _fake_ingest_directory)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["ingest-url", "https://example.com/docker", "--dest", "003 Знания"])
+
+    assert result.exit_code == 0
+    saved_file = tmp_path / "003 Знания" / "Статья-про-Docker.md"
+    assert saved_file.exists()
+    assert saved_file.read_text(encoding="utf-8") == "Текст статьи про Docker."
+    assert "003 Знания" in result.output
+    assert captured["detect_deletions"] is False
+
+
+def test_ingest_url_warns_on_low_quality_extraction(tmp_path, monkeypatch):
+    settings = load_settings()
+    monkeypatch.setattr("kf.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("kf.cli.DEFAULT_SOURCE", tmp_path)
+    monkeypatch.setattr(
+        "kf.cli.extract_from_url", lambda url, settings: ("", None, True)
+    )
+    monkeypatch.setattr("kf.cli._build_ingest_deps", lambda settings: object())
+
+    def _fake_ingest_directory(source_dir, deps, detect_deletions=True):
+        from kf.ingest import IngestStats
+
+        return IngestStats()
+
+    monkeypatch.setattr("kf.cli.ingest_directory", _fake_ingest_directory)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["ingest-url", "https://example.com/hard-site", "--dest", "001 Входящие"])
+
+    assert result.exit_code == 0
+    assert "скудным" in result.output or "Firecrawl" in result.output

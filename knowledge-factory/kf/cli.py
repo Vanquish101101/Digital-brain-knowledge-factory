@@ -18,6 +18,7 @@ from kf.store.postgres import connect, ensure_schema, list_paths
 from kf.store.qdrant_store import ensure_collection
 from kf.store.qdrant_store import get_client as get_qdrant_client
 from kf.store.qdrant_store import list_paths as qdrant_list_paths
+from kf.web_extract import derive_filename, extract_from_url
 
 DEFAULT_SOURCE = Path(__file__).resolve().parent.parent.parent / "raw-data-repository"
 
@@ -74,6 +75,32 @@ def ingest(source: Path | None):
             f"⚠ Обнаружены удалённые файлы: {stats.deleted_detected}. "
             f"Проверьте 'Журнал знаний.md' — решение об очистке базы принимается отдельно."
         )
+
+
+@cli.command(name="ingest-url")
+@click.argument("url")
+@click.option("--dest", required=True, help="Раздел vault (относительно raw-data-repository), куда сохранить.")
+def ingest_url(url: str, dest: str):
+    """Скачать статью или видео по ссылке, сохранить в vault и сразу проиндексировать."""
+    settings = load_settings()
+    text, title, is_low_quality = extract_from_url(url, settings)
+
+    dest_dir = DEFAULT_SOURCE / dest
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    filename = derive_filename(title) + ".md"
+    file_path = dest_dir / filename
+    file_path.write_text(text, encoding="utf-8")
+
+    click.echo(f"Сохранено: {dest}/{filename}")
+    if is_low_quality:
+        click.echo(
+            "⚠ Извлечённый текст выглядит скудным — возможно, сайту нужен инструмент "
+            "посильнее (Firecrawl, вручную)."
+        )
+
+    deps = _build_ingest_deps(settings)
+    stats = ingest_directory(dest_dir, deps, detect_deletions=False)
+    click.echo(f"Готово. проиндексировано: {stats.files_ingested}, чанков записано: {stats.chunks_written}")
 
 
 @cli.command()
