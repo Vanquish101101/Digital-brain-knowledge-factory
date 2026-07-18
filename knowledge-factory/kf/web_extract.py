@@ -17,7 +17,7 @@ LOW_QUALITY_THRESHOLD_CHARS = 200
 
 def is_youtube_url(url: str) -> bool:
     host = urlparse(url).netloc.lower()
-    return "youtube.com" in host or "youtu.be" in host
+    return host == "youtube.com" or host.endswith(".youtube.com") or host == "youtu.be"
 
 
 def derive_filename(title: str | None) -> str:

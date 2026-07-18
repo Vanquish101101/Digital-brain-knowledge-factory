@@ -15,6 +15,18 @@ def test_is_youtube_url_rejects_other_domains():
     assert is_youtube_url("https://example.com/article") is False
 
 
+def test_is_youtube_url_rejects_lookalike_domain():
+    assert is_youtube_url("https://notyoutube.com/watch?v=abc") is False
+
+
+def test_is_youtube_url_rejects_domain_with_youtube_as_suffix_trick():
+    assert is_youtube_url("https://youtube.com.evil.ru/watch?v=abc") is False
+
+
+def test_is_youtube_url_accepts_subdomain():
+    assert is_youtube_url("https://m.youtube.com/watch?v=abc") is True
+
+
 def test_derive_filename_slugifies_title():
     assert derive_filename("Как настроить Docker: полное руководство!") == "Как-настроить-Docker-полное-руководство"
 
