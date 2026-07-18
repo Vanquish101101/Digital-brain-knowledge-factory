@@ -311,3 +311,22 @@ def test_ingest_url_warns_on_low_quality_extraction(tmp_path, monkeypatch):
 
     assert result.exit_code == 0
     assert "скудным" in result.output or "Firecrawl" in result.output
+
+
+def test_ingest_url_reports_clean_error_on_network_failure(tmp_path, monkeypatch):
+    settings = load_settings()
+    monkeypatch.setattr("kf.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("kf.cli.DEFAULT_SOURCE", tmp_path)
+
+    def _raise_network_error(url, settings):
+        raise RuntimeError("сеть недоступна")
+
+    monkeypatch.setattr("kf.cli.extract_from_url", _raise_network_error)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["ingest-url", "https://example.com/unreachable", "--dest", "001 Входящие"])
+
+    assert result.exit_code != 0
+    assert "Не удалось получить содержимое по ссылке" in result.output
+    assert "сеть недоступна" in result.output
+    assert not isinstance(result.exception, RuntimeError)

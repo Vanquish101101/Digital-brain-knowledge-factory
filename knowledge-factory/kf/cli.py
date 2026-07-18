@@ -83,7 +83,10 @@ def ingest(source: Path | None):
 def ingest_url(url: str, dest: str):
     """Скачать статью или видео по ссылке, сохранить в vault и сразу проиндексировать."""
     settings = load_settings()
-    text, title, is_low_quality = extract_from_url(url, settings)
+    try:
+        text, title, is_low_quality = extract_from_url(url, settings)
+    except Exception as exc:
+        raise click.ClickException(f"Не удалось получить содержимое по ссылке: {exc}")
 
     dest_dir = DEFAULT_SOURCE / dest
     dest_dir.mkdir(parents=True, exist_ok=True)
