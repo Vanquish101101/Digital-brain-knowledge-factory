@@ -322,3 +322,38 @@ def test_entity_extraction_failure_does_not_abort_ingest(tmp_path, deps, monkeyp
 
     assert stats.files_ingested == 2
     assert stats.entities_failed == 1
+
+
+def test_ingest_uses_default_local_profile_when_not_specified(tmp_path, deps):
+    (tmp_path / "note1.md").write_text("Заметка про тест.", encoding="utf-8")
+
+    stats = ingest_directory(tmp_path, deps)
+
+    assert stats.files_ingested >= 1
+    assert deps.profile.name == "local"
+
+
+def test_ingest_calls_embed_for_profile_with_active_profile(tmp_path, deps, monkeypatch):
+    from kf.embedding_models import EMBEDDING_PROFILES
+    from kf.store.qdrant_store import ensure_collection
+
+    deps.profile = EMBEDDING_PROFILES["openai-small"]
+    # The `deps` fixture created `deps.collection` with vector_size=384 (the "local"
+    # profile's dimension). Swapping to a profile with a different dimension requires
+    # the real Qdrant collection to match, or the upsert below returns a 400 dimension
+    # mismatch unrelated to what this test actually verifies (that embed_for_profile is
+    # called with the active profile).
+    deps.qdrant_client.delete_collection(deps.collection)
+    ensure_collection(deps.qdrant_client, deps.collection, vector_size=deps.profile.dimension)
+    seen_profiles = []
+
+    def _fake_embed_for_profile(settings, profile, embedder, texts):
+        seen_profiles.append(profile.name)
+        return [[0.0] * profile.dimension for _ in texts]
+
+    monkeypatch.setattr("kf.ingest.embed_for_profile", _fake_embed_for_profile)
+    (tmp_path / "note1.md").write_text("Заметка про тест профиля.", encoding="utf-8")
+
+    ingest_directory(tmp_path, deps)
+
+    assert "openai-small" in seen_profiles

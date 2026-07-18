@@ -2,7 +2,7 @@ from pathlib import Path
 
 import click
 
-from kf.api import COLLECTION, VECTOR_SIZE, ask_question, get_stats, graph_search, open_session, semantic_search
+from kf.api import ask_question, get_stats, graph_search, open_session, semantic_search
 from kf.config import load_settings
 from kf.ingest import IngestDeps, ingest_directory
 from kf.store.graph_store import ensure_schema as ensure_graph_schema
@@ -24,9 +24,10 @@ def _build_ingest_deps(settings) -> IngestDeps:
         qdrant_client=session.qdrant_client,
         minio_client=minio_client,
         embedder=session.embedder,
-        collection=COLLECTION,
+        collection=session.profile.collection,
         settings=settings,
         graph_conn=graph_conn,
+        profile=session.profile,
     )
 
 

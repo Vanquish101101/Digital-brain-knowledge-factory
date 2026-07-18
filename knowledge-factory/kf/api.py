@@ -1,7 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from kf.config import Settings, load_settings
-from kf.embeddings import embed, get_embedder
+from kf.embedding_models import EMBEDDING_PROFILES, EmbeddingProfile, get_profile
+from kf.embedding_state import get_active_profile_name
+from kf.embeddings import embed_for_profile, get_embedder_for_profile
 from kf.llm import build_prompt, call_llm
 from kf.store.graph_store import ensure_schema as ensure_graph_schema
 from kf.store.graph_store import get_connection as get_graph_connection
@@ -11,9 +13,6 @@ from kf.store.qdrant_store import ensure_collection
 from kf.store.qdrant_store import get_client as get_qdrant_client
 from kf.store.qdrant_store import search as qdrant_search
 
-COLLECTION = "knowledge"
-VECTOR_SIZE = 384
-
 
 @dataclass
 class KnowledgeSession:
@@ -22,18 +21,20 @@ class KnowledgeSession:
     qdrant_client: object
     embedder: object
     graph_conn: object
+    profile: EmbeddingProfile = field(default_factory=lambda: EMBEDDING_PROFILES["local"])
 
 
 def open_session() -> KnowledgeSession:
     settings = load_settings()
+    profile = get_profile(get_active_profile_name(settings.data_root))
 
     pg_conn = connect(settings)
     ensure_schema(pg_conn)
 
     qdrant_client = get_qdrant_client(settings)
-    ensure_collection(qdrant_client, COLLECTION, vector_size=VECTOR_SIZE)
+    ensure_collection(qdrant_client, profile.collection, vector_size=profile.dimension)
 
-    embedder = get_embedder(settings)
+    embedder = get_embedder_for_profile(settings, profile)
 
     return KnowledgeSession(
         settings=settings,
@@ -41,12 +42,13 @@ def open_session() -> KnowledgeSession:
         qdrant_client=qdrant_client,
         embedder=embedder,
         graph_conn=None,
+        profile=profile,
     )
 
 
 def semantic_search(session: KnowledgeSession, query: str, limit: int = 5) -> list[dict]:
-    vector = embed(session.embedder, [query])[0]
-    results = qdrant_search(session.qdrant_client, COLLECTION, vector, limit=limit)
+    vector = embed_for_profile(session.settings, session.profile, session.embedder, [query])[0]
+    results = qdrant_search(session.qdrant_client, session.profile.collection, vector, limit=limit)
     return [
         {
             "path": r["payload"]["path"],
@@ -71,8 +73,8 @@ def get_stats(session: KnowledgeSession) -> dict:
         cur.execute("SELECT COUNT(*) FROM documents")
         doc_count = cur.fetchone()[0]
 
-    if session.qdrant_client.collection_exists(COLLECTION):
-        chunk_count = session.qdrant_client.get_collection(COLLECTION).points_count
+    if session.qdrant_client.collection_exists(session.profile.collection):
+        chunk_count = session.qdrant_client.get_collection(session.profile.collection).points_count
     else:
         chunk_count = 0
 

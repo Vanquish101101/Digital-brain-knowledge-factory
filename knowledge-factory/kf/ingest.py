@@ -1,11 +1,11 @@
-import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
 from kf.chunking import chunk_text
 from kf.config import Settings
-from kf.embeddings import embed
+from kf.embedding_models import EMBEDDING_PROFILES, EmbeddingProfile
+from kf.embeddings import embed_for_profile
 from kf.extract import extract_text
 from kf.graph import extract_entities_and_relationships
 from kf.hashing import sha256_of_file
@@ -14,10 +14,8 @@ from kf.scope import should_index
 from kf.store.graph_store import add_relationship, delete_relationships_by_source, upsert_entity
 from kf.store.minio_store import upload_file
 from kf.store.postgres import list_paths, needs_ingest, path_known, record_ingested
-from kf.store.qdrant_store import upsert_chunks
+from kf.store.qdrant_store import point_id, upsert_chunks
 from kf.synthesize import synthesize_note
-
-_NAMESPACE = uuid.UUID("12345678-1234-5678-1234-567812345678")
 
 
 @dataclass
@@ -31,6 +29,7 @@ class IngestDeps:
     max_chars: int = 1500
     overlap: int = 150
     graph_conn: object = None
+    profile: EmbeddingProfile = field(default_factory=lambda: EMBEDDING_PROFILES["local"])
 
 
 @dataclass
@@ -48,17 +47,13 @@ class IngestStats:
     entities_failed: int = 0
 
 
-def _point_id(path: str, chunk_index: int) -> str:
-    return str(uuid.uuid5(_NAMESPACE, f"{path}:{chunk_index}"))
-
-
 def _store_text(text: str, rel_key: str, path: Path, deps: IngestDeps, stats: IngestStats) -> None:
     chunks = chunk_text(text, max_chars=deps.max_chars, overlap=deps.overlap)
     if chunks:
-        vectors = embed(deps.embedder, chunks)
+        vectors = embed_for_profile(deps.settings, deps.profile, deps.embedder, chunks)
         points = [
             {
-                "id": _point_id(rel_key, i),
+                "id": point_id(rel_key, i),
                 "vector": vectors[i],
                 "payload": {"path": rel_key, "chunk_index": i, "text": chunks[i]},
             }

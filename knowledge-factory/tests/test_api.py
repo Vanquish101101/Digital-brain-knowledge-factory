@@ -1,6 +1,7 @@
 import uuid
 
 from kf.api import ask_question, get_stats, open_session, semantic_search
+from kf.embedding_models import EMBEDDING_PROFILES
 from kf.store.postgres import needs_ingest, record_ingested
 from kf.store.qdrant_store import delete_by_path, upsert_chunks
 from kf.embeddings import embed
@@ -113,3 +114,23 @@ def test_graph_search_opens_and_releases_its_own_connection_when_session_has_non
 
     second_conn = get_connection(settings)
     ensure_schema(second_conn)
+
+
+def test_open_session_defaults_to_local_profile():
+    session = open_session()
+
+    assert session.profile.name == "local"
+    assert session.profile.collection == "knowledge"
+
+
+def test_semantic_search_uses_session_profile_collection(monkeypatch):
+    session = open_session()
+    calls = []
+    monkeypatch.setattr(
+        "kf.api.qdrant_search",
+        lambda client, collection, vector, limit: calls.append(collection) or [],
+    )
+
+    semantic_search(session, "тест", limit=1)
+
+    assert calls == [session.profile.collection]
