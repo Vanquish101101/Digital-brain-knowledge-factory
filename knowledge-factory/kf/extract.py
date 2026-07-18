@@ -13,6 +13,7 @@ from kf.vision_caption import caption_image
 PLAIN_TEXT_EXTENSIONS = {".md", ".txt", ".csv", ".html"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm"}
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".m4a"}
 
 
 def _extract_docx(path: Path) -> str:
@@ -31,6 +32,10 @@ def _extract_image(path: Path, settings: Settings) -> str:
         caption = caption_image(settings, path)
         return f"{ocr_text}\n\n[Описание изображения]\n{caption}".strip()
     return ocr_text
+
+
+def _extract_audio_file(path: Path, settings: Settings) -> str:
+    return transcribe_audio(path, settings.whisper_model_size, settings.model_cache_dir)
 
 
 def _extract_video(path: Path, settings: Settings) -> str:
@@ -81,4 +86,6 @@ def extract_text(path: Path, settings: Settings) -> str:
         return _extract_image(path, settings)
     if suffix in VIDEO_EXTENSIONS:
         return _extract_video(path, settings)
+    if suffix in AUDIO_EXTENSIONS:
+        return _extract_audio_file(path, settings)
     raise ValueError(f"Unsupported file type: {suffix}")

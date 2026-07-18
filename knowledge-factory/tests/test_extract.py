@@ -219,3 +219,27 @@ def test_video_without_audio_track_still_analyzes_frames(tmp_path, monkeypatch):
     assert "[Транскрипт]" not in text
     assert "[Кадр 00:00]" in text
     assert "текст на кадре" in text
+
+
+def test_dispatches_audio_file_to_transcription(tmp_path, monkeypatch):
+    f = tmp_path / "voice.mp3"
+    f.write_bytes(b"fakeaudio")
+    monkeypatch.setattr(
+        "kf.extract.transcribe_audio", lambda path, model_size, cache_dir: "Голосовое сообщение про отпуск"
+    )
+
+    text = extract_text(f, _dummy_settings())
+
+    assert text == "Голосовое сообщение про отпуск"
+
+
+def test_audio_extraction_supports_all_expected_extensions(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "kf.extract.transcribe_audio", lambda path, model_size, cache_dir: "текст"
+    )
+
+    for ext in (".mp3", ".wav", ".ogg", ".m4a"):
+        f = tmp_path / f"file{ext}"
+        f.write_bytes(b"fakeaudio")
+
+        assert extract_text(f, _dummy_settings()) == "текст"

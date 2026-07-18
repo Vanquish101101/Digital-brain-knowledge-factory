@@ -46,3 +46,11 @@ def test_excludes_pycache_dir():
 def test_excludes_bookmarks_dump_by_filename():
     path = Path("001 Входящие (Сырые данные)/Закладки браузера — структура.md")
     assert should_index(path) is False
+
+
+def test_includes_audio_extensions(tmp_path):
+    for ext in (".mp3", ".wav", ".ogg", ".m4a"):
+        f = tmp_path / f"голосовое{ext}"
+        f.write_bytes(b"x")
+
+        assert should_index(f) is True
