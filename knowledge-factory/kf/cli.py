@@ -4,11 +4,20 @@ import click
 
 from kf.api import ask_question, get_stats, graph_search, open_session, semantic_search
 from kf.config import load_settings
+from kf.embedding_models import EMBEDDING_PROFILES, get_profile
+from kf.embedding_state import get_active_profile_name, set_active_profile_name
+from kf.embedding_sync import sync_missing_paths
+from kf.embeddings import get_embedder_for_profile
 from kf.ingest import IngestDeps, ingest_directory
+from kf.journal import detect_deleted
 from kf.store.graph_store import ensure_schema as ensure_graph_schema
 from kf.store.graph_store import get_connection as get_graph_connection
 from kf.store.minio_store import ensure_bucket
 from kf.store.minio_store import get_client as get_minio_client
+from kf.store.postgres import connect, ensure_schema, list_paths
+from kf.store.qdrant_store import ensure_collection
+from kf.store.qdrant_store import get_client as get_qdrant_client
+from kf.store.qdrant_store import list_paths as qdrant_list_paths
 
 DEFAULT_SOURCE = Path(__file__).resolve().parent.parent.parent / "raw-data-repository"
 
@@ -116,6 +125,88 @@ def stats():
     s = get_stats(session)
     click.echo(f"Документов в Postgres: {s['documents']}")
     click.echo(f"Чанков (векторов) в Qdrant: {s['chunks']}")
+
+
+@cli.group(name="embedding-model")
+def embedding_model():
+    """Управление активной моделью эмбеддинга."""
+
+
+@embedding_model.command(name="list")
+def embedding_model_list():
+    """Показать все профили моделей и их покрытие относительно текущей базы."""
+    settings = load_settings()
+    active = get_active_profile_name(settings.data_root)
+
+    pg_conn = connect(settings)
+    ensure_schema(pg_conn)
+    known_paths = list_paths(pg_conn)
+
+    qdrant_client = get_qdrant_client(settings)
+
+    for name, profile in EMBEDDING_PROFILES.items():
+        indexed_paths = qdrant_list_paths(qdrant_client, profile.collection)
+        missing = detect_deleted(known_paths, indexed_paths)
+        marker = "* " if name == active else "  "
+        click.echo(
+            f"{marker}{name} ({profile.provider}, {profile.model_id}, размерность={profile.dimension}): "
+            f"{len(indexed_paths)}/{len(known_paths)} файлов, не хватает {len(missing)}"
+        )
+
+
+@embedding_model.command(name="use")
+@click.argument("name")
+def embedding_model_use(name: str):
+    """Переключить активную модель эмбеддинга (без переиндексации)."""
+    settings = load_settings()
+    try:
+        profile = get_profile(name)
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
+
+    set_active_profile_name(settings.data_root, name)
+
+    pg_conn = connect(settings)
+    ensure_schema(pg_conn)
+    known_paths = list_paths(pg_conn)
+
+    qdrant_client = get_qdrant_client(settings)
+    indexed_paths = qdrant_list_paths(qdrant_client, profile.collection)
+    missing = detect_deleted(known_paths, indexed_paths)
+
+    click.echo(f"Активная модель: {name}")
+    if missing:
+        click.echo(
+            f"⚠ Коллекция отстаёт: не хватает {len(missing)} файлов. "
+            f"Запустите 'kf.py embedding-model sync', чтобы досчитать."
+        )
+
+
+@embedding_model.command(name="sync")
+def embedding_model_sync():
+    """Досчитать эмбеддинги только для файлов, которых не хватает в активной коллекции."""
+    settings = load_settings()
+    profile = get_profile(get_active_profile_name(settings.data_root))
+
+    pg_conn = connect(settings)
+    ensure_schema(pg_conn)
+    known_paths = list_paths(pg_conn)
+
+    qdrant_client = get_qdrant_client(settings)
+    ensure_collection(qdrant_client, profile.collection, vector_size=profile.dimension)
+    indexed_paths = qdrant_list_paths(qdrant_client, profile.collection)
+    missing = detect_deleted(known_paths, indexed_paths)
+
+    if not missing:
+        click.echo("Коллекция уже актуальна, синхронизация не нужна.")
+        return
+
+    embedder = get_embedder_for_profile(settings, profile)
+    notes_dir = Path(settings.synthesis_notes_dir)
+    synced, failed = sync_missing_paths(
+        missing, DEFAULT_SOURCE, notes_dir, settings, profile, embedder, qdrant_client
+    )
+    click.echo(f"Готово. синхронизировано: {synced}, ошибок: {failed}")
 
 
 if __name__ == "__main__":

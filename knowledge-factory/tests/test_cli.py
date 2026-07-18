@@ -131,3 +131,91 @@ def test_graph_command_reports_not_found_for_unknown_entity(tmp_path, monkeypatc
 
     assert result.exit_code == 0
     assert "не найдена" in result.output
+
+
+def test_embedding_model_list_marks_active_profile(monkeypatch):
+    monkeypatch.setattr("kf.cli.get_active_profile_name", lambda data_root: "local")
+    monkeypatch.setattr("kf.cli.list_paths", lambda pg_conn: set())
+    monkeypatch.setattr("kf.cli.qdrant_list_paths", lambda client, collection: set())
+    monkeypatch.setattr("kf.cli.connect", lambda settings: None)
+    monkeypatch.setattr("kf.cli.ensure_schema", lambda conn: None)
+    monkeypatch.setattr("kf.cli.get_qdrant_client", lambda settings: None)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["embedding-model", "list"])
+
+    assert result.exit_code == 0
+    assert "* local" in result.output
+
+
+def test_embedding_model_use_rejects_unknown_profile():
+    runner = CliRunner()
+    result = runner.invoke(cli, ["embedding-model", "use", "не-существует"])
+
+    assert result.exit_code != 0
+    assert "неизвестный профиль" in result.output
+
+
+def test_embedding_model_use_switches_and_warns_about_gap(monkeypatch, tmp_path):
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    monkeypatch.setattr("kf.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("kf.cli.list_paths", lambda pg_conn: {"a.md", "b.md"})
+    monkeypatch.setattr("kf.cli.qdrant_list_paths", lambda client, collection: {"a.md"})
+    monkeypatch.setattr("kf.cli.connect", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_schema", lambda conn: None)
+    monkeypatch.setattr("kf.cli.get_qdrant_client", lambda s: None)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["embedding-model", "use", "qwen3-8b"])
+
+    assert result.exit_code == 0
+    assert "Активная модель: qwen3-8b" in result.output
+    assert "не хватает 1" in result.output
+
+
+def test_embedding_model_sync_reports_up_to_date_when_nothing_missing(monkeypatch, tmp_path):
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    monkeypatch.setattr("kf.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("kf.cli.get_active_profile_name", lambda data_root: "local")
+    monkeypatch.setattr("kf.cli.list_paths", lambda pg_conn: {"a.md"})
+    monkeypatch.setattr("kf.cli.qdrant_list_paths", lambda client, collection: {"a.md"})
+    monkeypatch.setattr("kf.cli.connect", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_schema", lambda conn: None)
+    monkeypatch.setattr("kf.cli.get_qdrant_client", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_collection", lambda client, collection, vector_size: None)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["embedding-model", "sync"])
+
+    assert result.exit_code == 0
+    assert "актуальна" in result.output
+
+
+def test_embedding_model_sync_calls_sync_missing_paths(monkeypatch, tmp_path):
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    monkeypatch.setattr("kf.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("kf.cli.get_active_profile_name", lambda data_root: "local")
+    monkeypatch.setattr("kf.cli.list_paths", lambda pg_conn: {"a.md", "b.md"})
+    monkeypatch.setattr("kf.cli.qdrant_list_paths", lambda client, collection: {"a.md"})
+    monkeypatch.setattr("kf.cli.connect", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_schema", lambda conn: None)
+    monkeypatch.setattr("kf.cli.get_qdrant_client", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_collection", lambda client, collection, vector_size: None)
+    monkeypatch.setattr("kf.cli.get_embedder_for_profile", lambda settings, profile: None)
+    seen = {}
+
+    def _fake_sync(missing_paths, source_dir, notes_dir, settings, profile, embedder, qdrant_client):
+        seen["missing"] = missing_paths
+        return (1, 0)
+
+    monkeypatch.setattr("kf.cli.sync_missing_paths", _fake_sync)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["embedding-model", "sync"])
+
+    assert result.exit_code == 0
+    assert seen["missing"] == {"b.md"}
+    assert "синхронизировано: 1" in result.output
