@@ -66,3 +66,13 @@ def list_paths(conn: psycopg.Connection, exclude_prefix: str = "") -> set[str]:
     if exclude_prefix:
         paths = {p for p in paths if not p.startswith(exclude_prefix)}
     return paths
+
+
+def list_paths_with_hashes(conn: psycopg.Connection, exclude_prefix: str = "") -> dict[str, str]:
+    with conn.cursor() as cur:
+        cur.execute("SELECT path, sha256 FROM documents")
+        rows = cur.fetchall()
+    result = {row[0]: row[1] for row in rows}
+    if exclude_prefix:
+        result = {p: h for p, h in result.items() if not p.startswith(exclude_prefix)}
+    return result

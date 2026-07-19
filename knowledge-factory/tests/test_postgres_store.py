@@ -1,7 +1,7 @@
 import pytest
 
 from kf.config import load_settings
-from kf.store.postgres import connect, ensure_schema, needs_ingest, record_ingested, list_paths, path_known
+from kf.store.postgres import connect, ensure_schema, needs_ingest, record_ingested, list_paths, list_paths_with_hashes, path_known
 
 
 @pytest.fixture
@@ -70,3 +70,23 @@ def test_list_paths_excludes_prefix(conn):
 
     assert "test://a.md" in paths
     assert "test://notes/a.md.md" not in paths
+
+
+def test_list_paths_with_hashes_returns_hash_per_path(conn):
+    record_ingested(conn, "test://a.md", "hash-a")
+    record_ingested(conn, "test://b.md", "hash-b")
+
+    result = list_paths_with_hashes(conn)
+
+    assert result["test://a.md"] == "hash-a"
+    assert result["test://b.md"] == "hash-b"
+
+
+def test_list_paths_with_hashes_excludes_prefix(conn):
+    record_ingested(conn, "test://a.md", "hash-a")
+    record_ingested(conn, "test://notes/a.md.md", "hash-b")
+
+    result = list_paths_with_hashes(conn, exclude_prefix="test://notes/")
+
+    assert "test://a.md" in result
+    assert "test://notes/a.md.md" not in result

@@ -34,3 +34,7 @@ def file_exists(client: Minio, object_name: str, bucket: str = BUCKET) -> bool:
         if e.code == "NoSuchKey":
             return False
         raise
+
+
+def remove_object(client: Minio, object_name: str, bucket: str = BUCKET) -> None:
+    client.remove_object(bucket, object_name)
