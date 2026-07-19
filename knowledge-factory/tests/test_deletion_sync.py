@@ -70,6 +70,7 @@ def test_note_rel_key_for_builds_expected_path():
 def test_purge_source_removes_from_all_stores(tmp_path, monkeypatch):
     settings = load_settings()
     settings.synthesis_notes_dir = str(tmp_path / "notes")
+    settings.data_root = str(tmp_path)
     Path(settings.synthesis_notes_dir).mkdir(parents=True, exist_ok=True)
 
     source_rel_key = "test-purge/файл.md"
