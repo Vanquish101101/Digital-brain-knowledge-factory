@@ -1,20 +1,23 @@
+from datetime import date
 from pathlib import Path
 
 import click
 
 from kf.api import ask_question, get_stats, graph_search, open_session, semantic_search
 from kf.config import load_settings
+from kf.deletion_sync import compute_deletion_candidates, purge_source
 from kf.embedding_models import EMBEDDING_PROFILES, get_profile
 from kf.embedding_state import get_active_profile_name, set_active_profile_name
 from kf.embedding_sync import sync_missing_paths
 from kf.embeddings import get_embedder_for_profile
 from kf.ingest import IngestDeps, ingest_directory
-from kf.journal import detect_deleted
+from kf.journal import append_entries, detect_deleted, format_entry
+from kf.scope import should_index
 from kf.store.graph_store import ensure_schema as ensure_graph_schema
 from kf.store.graph_store import get_connection as get_graph_connection
 from kf.store.minio_store import ensure_bucket
 from kf.store.minio_store import get_client as get_minio_client
-from kf.store.postgres import connect, ensure_schema, list_paths
+from kf.store.postgres import connect, ensure_schema, list_paths, list_paths_with_hashes
 from kf.store.qdrant_store import ensure_collection
 from kf.store.qdrant_store import get_client as get_qdrant_client
 from kf.store.qdrant_store import list_paths as qdrant_list_paths
@@ -237,6 +240,61 @@ def embedding_model_sync():
         missing, DEFAULT_SOURCE, notes_dir, settings, profile, embedder, qdrant_client
     )
     click.echo(f"Готово. синхронизировано: {synced}, ошибок: {failed}")
+
+
+@cli.command(name="sync-deletions")
+@click.option("--yes", is_flag=True, default=False, help="Реально выполнить очистку (без флага — только план).")
+def sync_deletions(yes: bool):
+    """Найти файлы, реально удалённые из vault, и (по подтверждению) очистить осиротевшие записи."""
+    settings = load_settings()
+    pg_conn = connect(settings)
+    ensure_schema(pg_conn)
+
+    notes_dir_name = Path(settings.synthesis_notes_dir).name
+    notes_prefix = f"{notes_dir_name}/"
+
+    all_hashes = list_paths_with_hashes(pg_conn)
+    known_source_hashes = list_paths_with_hashes(pg_conn, exclude_prefix=notes_prefix)
+
+    seen_source_paths = {
+        path.relative_to(DEFAULT_SOURCE).as_posix()
+        for path in sorted(DEFAULT_SOURCE.rglob("*"))
+        if path.is_file() and should_index(path)
+    }
+
+    confirmed, renamed = compute_deletion_candidates(known_source_hashes, seen_source_paths, all_hashes)
+
+    if renamed:
+        click.echo(f"Похоже на переименование/дубликат (не трогаем): {len(renamed)}")
+        for p in renamed:
+            click.echo(f"  - {p}")
+
+    if not confirmed:
+        click.echo("Нечего чистить — осиротевших записей не найдено.")
+        return
+
+    click.echo(f"К очистке: {len(confirmed)} файл(ов)")
+    for p in confirmed:
+        click.echo(f"  - {p}")
+
+    if not yes:
+        click.echo("\nЭто был предварительный просмотр. Запустите с --yes, чтобы реально очистить.")
+        return
+
+    qdrant_client = get_qdrant_client(settings)
+    minio_client = get_minio_client(settings)
+    graph_conn = get_graph_connection(settings)
+    ensure_graph_schema(graph_conn)
+
+    journal_entries = []
+    today = date.today().isoformat()
+    for p in confirmed:
+        purge_source(p, settings, pg_conn, qdrant_client, minio_client, graph_conn)
+        section = p.split("/", 1)[0]
+        journal_entries.append(format_entry("очищено_из_базы", p, section, "", today))
+
+    append_entries(journal_entries, DEFAULT_SOURCE.parent / "Журнал знаний.md")
+    click.echo(f"Готово. Очищено: {len(confirmed)}")
 
 
 if __name__ == "__main__":

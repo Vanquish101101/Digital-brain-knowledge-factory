@@ -331,3 +331,82 @@ def test_ingest_url_reports_clean_error_on_network_failure(tmp_path, monkeypatch
     assert "Не удалось получить содержимое по ссылке" in result.output
     assert "сеть недоступна" in result.output
     assert not isinstance(result.exception, RuntimeError)
+
+
+def test_sync_deletions_dry_run_shows_plan_without_purging(monkeypatch, tmp_path):
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    monkeypatch.setattr("kf.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("kf.cli.DEFAULT_SOURCE", tmp_path)
+    monkeypatch.setattr("kf.cli.connect", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_schema", lambda conn: None)
+    monkeypatch.setattr(
+        "kf.cli.list_paths_with_hashes",
+        lambda pg_conn, exclude_prefix="": {"a.md": "hash-a", "b.md": "hash-b"},
+    )
+    purge_calls = []
+    monkeypatch.setattr("kf.cli.purge_source", lambda *a, **kw: purge_calls.append(a))
+
+    (tmp_path / "a.md").write_text("x", encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["sync-deletions"])
+
+    assert result.exit_code == 0
+    assert "b.md" in result.output
+    assert "К очистке" in result.output
+    assert "предварительный просмотр" in result.output
+    assert purge_calls == []
+
+
+def test_sync_deletions_with_yes_calls_purge_and_writes_journal(monkeypatch, tmp_path):
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    monkeypatch.setattr("kf.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("kf.cli.DEFAULT_SOURCE", tmp_path)
+    monkeypatch.setattr("kf.cli.connect", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_schema", lambda conn: None)
+    monkeypatch.setattr(
+        "kf.cli.list_paths_with_hashes",
+        lambda pg_conn, exclude_prefix="": {"a.md": "hash-a", "b.md": "hash-b"},
+    )
+    monkeypatch.setattr("kf.cli.get_qdrant_client", lambda s: None)
+    monkeypatch.setattr("kf.cli.get_minio_client", lambda s: None)
+    monkeypatch.setattr("kf.cli.get_graph_connection", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_graph_schema", lambda conn: None)
+    purge_calls = []
+    monkeypatch.setattr("kf.cli.purge_source", lambda *a, **kw: purge_calls.append(a[0]))
+
+    (tmp_path / "a.md").write_text("x", encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["sync-deletions", "--yes"])
+
+    assert result.exit_code == 0
+    assert purge_calls == ["b.md"]
+    assert "Очищено: 1" in result.output
+    journal = tmp_path.parent / "Журнал знаний.md"
+    assert journal.exists()
+    assert "очищено_из_базы" in journal.read_text(encoding="utf-8")
+    journal.unlink()
+
+
+def test_sync_deletions_reports_nothing_to_clean(monkeypatch, tmp_path):
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    monkeypatch.setattr("kf.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("kf.cli.DEFAULT_SOURCE", tmp_path)
+    monkeypatch.setattr("kf.cli.connect", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_schema", lambda conn: None)
+    monkeypatch.setattr(
+        "kf.cli.list_paths_with_hashes",
+        lambda pg_conn, exclude_prefix="": {"a.md": "hash-a"},
+    )
+
+    (tmp_path / "a.md").write_text("x", encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["sync-deletions"])
+
+    assert result.exit_code == 0
+    assert "Нечего чистить" in result.output
