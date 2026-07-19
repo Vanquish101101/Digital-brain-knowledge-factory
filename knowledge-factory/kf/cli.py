@@ -21,7 +21,7 @@ from kf.store.postgres import connect, ensure_schema, list_paths, list_paths_wit
 from kf.store.qdrant_store import ensure_collection
 from kf.store.qdrant_store import get_client as get_qdrant_client
 from kf.store.qdrant_store import list_paths as qdrant_list_paths
-from kf.web_extract import derive_filename, extract_from_url
+from kf.web_extract import derive_filename, extract_from_url, unique_filename
 
 DEFAULT_SOURCE = Path(__file__).resolve().parent.parent.parent / "raw-data-repository"
 
@@ -93,7 +93,7 @@ def ingest_url(url: str, dest: str):
 
     dest_dir = DEFAULT_SOURCE / dest
     dest_dir.mkdir(parents=True, exist_ok=True)
-    filename = derive_filename(title) + ".md"
+    filename = unique_filename(dest_dir, derive_filename(title) + ".md")
     file_path = dest_dir / filename
     file_path.write_text(text, encoding="utf-8")
 

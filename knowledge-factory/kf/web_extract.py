@@ -37,6 +37,17 @@ def derive_filename(title: str | None) -> str:
     return f"url-{timestamp}"
 
 
+def unique_filename(dest_dir: Path, filename: str) -> str:
+    if not (dest_dir / filename).exists():
+        return filename
+    stem = Path(filename).stem
+    suffix = Path(filename).suffix
+    counter = 2
+    while (dest_dir / f"{stem}-{counter}{suffix}").exists():
+        counter += 1
+    return f"{stem}-{counter}{suffix}"
+
+
 def extract_article(url: str) -> tuple[str, str | None]:
     response = httpx.get(url, timeout=30, follow_redirects=True, headers=_BROWSER_HEADERS)
     response.raise_for_status()
@@ -66,6 +77,15 @@ def extract_youtube_transcript(url: str) -> str | None:
     return " ".join(snippet.text for snippet in transcript).strip()
 
 
+def _youtube_title(url: str) -> str | None:
+    try:
+        with yt_dlp.YoutubeDL({"quiet": True, "noprogress": True, "skip_download": True}) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except Exception:
+        return None
+    return info.get("title") if info else None
+
+
 def extract_video_via_download(url: str, settings: Settings) -> str:
     with tempfile.TemporaryDirectory() as tmpdir:
         outtmpl = str(Path(tmpdir) / "audio.%(ext)s")
@@ -90,7 +110,7 @@ def extract_from_url(url: str, settings: Settings) -> tuple[str, str | None, boo
         text = extract_youtube_transcript(url)
         if text is None:
             text = extract_video_via_download(url, settings)
-        title = None
+        title = _youtube_title(url)
     else:
         text, title = extract_article(url)
 
