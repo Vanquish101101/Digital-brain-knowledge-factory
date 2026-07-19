@@ -410,3 +410,34 @@ def test_sync_deletions_reports_nothing_to_clean(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert "Нечего чистить" in result.output
+
+
+def test_sync_deletions_reports_success_even_if_journal_write_fails(monkeypatch, tmp_path):
+    settings = load_settings()
+    settings.data_root = str(tmp_path)
+    monkeypatch.setattr("kf.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("kf.cli.DEFAULT_SOURCE", tmp_path)
+    monkeypatch.setattr("kf.cli.connect", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_schema", lambda conn: None)
+    monkeypatch.setattr(
+        "kf.cli.list_paths_with_hashes",
+        lambda pg_conn, exclude_prefix="": {"a.md": "hash-a", "b.md": "hash-b"},
+    )
+    monkeypatch.setattr("kf.cli.get_qdrant_client", lambda s: None)
+    monkeypatch.setattr("kf.cli.get_minio_client", lambda s: None)
+    monkeypatch.setattr("kf.cli.get_graph_connection", lambda s: None)
+    monkeypatch.setattr("kf.cli.ensure_graph_schema", lambda conn: None)
+    monkeypatch.setattr("kf.cli.purge_source", lambda *a, **kw: None)
+
+    def _boom(entries, path):
+        raise RuntimeError("файл журнала занят")
+
+    monkeypatch.setattr("kf.cli.append_entries", _boom)
+
+    (tmp_path / "a.md").write_text("x", encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["sync-deletions", "--yes"])
+
+    assert result.exit_code == 0
+    assert "Готово. Очищено: 1" in result.output

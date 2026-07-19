@@ -293,7 +293,10 @@ def sync_deletions(yes: bool):
         section = p.split("/", 1)[0]
         journal_entries.append(format_entry("очищено_из_базы", p, section, "", today))
 
-    append_entries(journal_entries, DEFAULT_SOURCE.parent / "Журнал знаний.md")
+    try:
+        append_entries(journal_entries, DEFAULT_SOURCE.parent / "Журнал знаний.md")
+    except Exception as exc:
+        click.echo(f"⚠ Запись в Журнал знаний.md не удалась: {exc}")
     click.echo(f"Готово. Очищено: {len(confirmed)}")
 
 
