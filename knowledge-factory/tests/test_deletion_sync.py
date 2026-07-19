@@ -138,3 +138,57 @@ def test_purge_source_removes_from_all_stores(tmp_path, monkeypatch):
                 qdrant_client.delete_collection(collection)
             except Exception:
                 pass
+
+
+def test_purge_source_skips_nonexistent_collection_without_error(tmp_path, monkeypatch, capsys):
+    settings = load_settings()
+    settings.synthesis_notes_dir = str(tmp_path / "notes")
+    settings.data_root = str(tmp_path)
+    Path(settings.synthesis_notes_dir).mkdir(parents=True, exist_ok=True)
+
+    source_rel_key = "test-purge-missing-collection/файл.md"
+    notes_dir_name = Path(settings.synthesis_notes_dir).name
+    note_rel_key = note_rel_key_for(source_rel_key, notes_dir_name)
+
+    real_collection = "kf_test_deletion_sync_missing_c"
+    missing_collection = "kf_test_deletion_sync_missing_does_not_exist"
+    fake_profiles = {
+        "test-real": EmbeddingProfile(name="test-real", provider="local", model_id="m", dimension=8, collection=real_collection),
+        "test-missing": EmbeddingProfile(name="test-missing", provider="local", model_id="m", dimension=8, collection=missing_collection),
+    }
+    monkeypatch.setattr("kf.deletion_sync.EMBEDDING_PROFILES", fake_profiles)
+
+    pg_conn = connect(settings)
+    ensure_schema(pg_conn)
+    record_ingested(pg_conn, source_rel_key, "hash-x")
+
+    qdrant_client = get_qdrant_client(settings)
+    vector = [0.0] * 8
+    try:
+        ensure_collection(qdrant_client, real_collection, vector_size=8)
+        upsert_chunks(
+            qdrant_client,
+            real_collection,
+            [{"id": str(uuid.uuid4()), "vector": vector, "payload": {"path": source_rel_key, "chunk_index": 0, "text": "x"}}],
+        )
+        assert qdrant_client.collection_exists(missing_collection) is False
+
+        minio_client = get_minio_client(settings)
+        ensure_bucket(minio_client)
+        graph_conn = get_graph_connection(settings)
+        ensure_graph_schema(graph_conn)
+
+        purge_source(source_rel_key, settings, pg_conn, qdrant_client, minio_client, graph_conn)
+
+        captured = capsys.readouterr()
+        assert missing_collection not in captured.out
+        assert path_known(pg_conn, source_rel_key) is False
+        assert qdrant_list_paths(qdrant_client, real_collection) == set()
+    finally:
+        with pg_conn.cursor() as cur:
+            cur.execute("DELETE FROM documents WHERE path = %s", (source_rel_key,))
+        pg_conn.commit()
+        try:
+            qdrant_client.delete_collection(real_collection)
+        except Exception:
+            pass

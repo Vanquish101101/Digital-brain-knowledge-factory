@@ -48,6 +48,8 @@ def purge_source(
         print(f"[sync-deletions] Postgres не удалось очистить {source_rel_key}: {exc}")
 
     for profile in EMBEDDING_PROFILES.values():
+        if not qdrant_client.collection_exists(profile.collection):
+            continue
         try:
             delete_by_path(qdrant_client, profile.collection, source_rel_key)
             delete_by_path(qdrant_client, profile.collection, note_rel_key)
