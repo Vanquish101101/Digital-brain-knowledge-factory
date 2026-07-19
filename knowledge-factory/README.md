@@ -44,6 +44,7 @@ uv run python kf.py stats                    # сколько документо
 uv run python kf.py embedding-model list     # профили моделей эмбеддинга и их покрытие
 uv run python kf.py embedding-model use <n>  # переключить активную модель (без переиндексации)
 uv run python kf.py embedding-model sync     # досчитать недостающие эмбеддинги для активной модели
+uv run python kf.py sync-deletions [--yes]   # очистить записи для файлов, реально удалённых из vault
 ```
 
 Исключено из индексации: `Закладки браузера — структура.md` (низкая ценность для поиска,
